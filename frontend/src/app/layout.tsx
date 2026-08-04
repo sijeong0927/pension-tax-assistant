@@ -1,22 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "연금세금비서 | 연금저축 & IRP 세액공제 모의 계산",
-  description: "내 소득에 딱 맞는 연금저축과 IRP 최적 납입 비율을 계산하고 세액공제 혜택을 계산해 보세요.",
+  title: "절세택시 | 연금 세액공제 AI 빠른 경로 안내",
+  description:
+    "연금저축과 IRP로 세금 얼마나 아껴요? 1초 만에 최적의 절세 경로로 안내받으세요.",
 };
 
 export default function RootLayout({
@@ -25,13 +20,29 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="bg-gray-50 text-gray-900 min-h-screen flex flex-col font-sans antialiased">
-        <Header />
-        <main className="flex-grow">
-          {children}
-        </main>
-        <Footer />
+    <html lang="ko" className={inter.variable}>
+      <head>
+        {/* Material Symbols Outlined */}
+        <link
+          rel="preconnect"
+          href="https://fonts.googleapis.com"
+        />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+          rel="stylesheet"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-screen flex flex-col gradient-bg antialiased">
+        {children}
       </body>
     </html>
   );
