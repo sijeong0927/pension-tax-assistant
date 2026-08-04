@@ -83,6 +83,8 @@ class RAGSettings:
     rag_top_k: int
     rag_min_relevance_score: float
     rag_max_index_documents: int
+    rag_max_pdf_documents: int
+    rag_max_pdf_embedding_requests: int
 
     @classmethod
     def from_env(cls) -> "RAGSettings":
@@ -130,6 +132,18 @@ class RAGSettings:
                 50,
                 minimum=1,
                 maximum=100,
+            ),
+            rag_max_pdf_documents=_bounded_int(
+                "RAG_MAX_PDF_DOCUMENTS",
+                1000,
+                minimum=1,
+                maximum=1000,
+            ),
+            rag_max_pdf_embedding_requests=_bounded_int(
+                "RAG_MAX_PDF_EMBEDDING_REQUESTS",
+                50,
+                minimum=1,
+                maximum=50,
             ),
         )
 

@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from app.core.config import ConfigurationError, RAGSettings
+from app.services.knowledge_base import load_knowledge_base
 from app.services.rag_service import RAGService, RAGServiceError
 
 
@@ -86,6 +87,8 @@ def make_settings(tmp_path: Path) -> RAGSettings:
         rag_top_k=4,
         rag_min_relevance_score=0.35,
         rag_max_index_documents=50,
+        rag_max_pdf_documents=1000,
+        rag_max_pdf_embedding_requests=50,
     )
 
 
@@ -149,10 +152,42 @@ def test_index_knowledge_base_upserts_all_documents(tmp_path: Path) -> None:
 
     result = service.index_knowledge_base()
 
-    assert result.indexed_count == 21
+    assert result.indexed_count == 31
     assert collection.upsert_payload is not None
-    assert len(collection.upsert_payload["ids"]) == 21
-    assert len(collection.upsert_payload["embeddings"]) == 21
+    assert len(collection.upsert_payload["ids"]) == 31
+    assert len(collection.upsert_payload["embeddings"]) == 31
+
+
+def test_new_faq_query_keeps_corrected_public_pension_context(tmp_path: Path) -> None:
+    report = load_knowledge_base(
+        Path(__file__).resolve().parents[1] / "app/data/tax_faq.json"
+    )
+    document = next(
+        item for item in report.documents if item.document_id == "faq_23"
+    )
+
+    class FaqCollection(FakeCollection):
+        def query(self, **_: Any) -> dict[str, Any]:
+            return {
+                "ids": [[document.document_id]],
+                "documents": [[document.text]],
+                "metadatas": [[document.to_metadata()]],
+                "distances": [[0.1]],
+            }
+
+    openai_client = FakeOpenAI()
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=openai_client,
+        collection=FaqCollection(),
+    )
+
+    answer = service.answer_question("공적연금과 사적연금은 함께 과세되나요?")
+
+    assert answer.grounded is True
+    assert answer.sources[0].document_id == "faq_23"
+    assert answer.sources[0].provenance_verified is True
+    assert "과세대상 공적연금소득" in openai_client.responses.calls[0]["input"]
 
 
 def test_index_document_limit_prevents_openai_call(tmp_path: Path) -> None:
@@ -179,7 +214,7 @@ def test_chroma_round_trip_with_fake_openai(tmp_path: Path) -> None:
     indexing_result = service.index_knowledge_base()
     retrieved = service.retrieve("연금계좌 세액공제 가이드")
 
-    assert indexing_result.indexed_count == 21
+    assert indexing_result.indexed_count == 31
     assert retrieved
     assert retrieved[0].document_id == "guide_00"
     assert (tmp_path / ".chroma").exists()

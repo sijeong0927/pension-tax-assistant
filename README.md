@@ -261,9 +261,24 @@ python scripts/index_tax_faq.py
 ```
 
 OpenAI 임베딩 API 비용이 발생하므로 FAQ 원문이 변경됐을 때만 수동으로 실행합니다.
-현재 FAQ는 공식 출처 메타데이터를 보강해야 하는 초안입니다.
+현재 FAQ는 공식 출처 메타데이터를 포함하며, 배포 전에는 `--strict-provenance`로
+누락 여부를 검증합니다.
 
-### 4. 개발 서버 실행
+### 4. PDF 지식베이스 적재
+
+국세청 PDF를 ChromaDB에 적재하려면 OpenAI API 키를 설정한 뒤 아래 명령을 수동으로 실행합니다.
+기본 PDF는 SHA-256으로 국세청 원문 여부를 확인하며, 임의의 `--pdf` 파일은 검증된 출처로
+표시하지 않습니다. 이 명령은 임베딩 API 비용을 발생시킵니다.
+
+```powershell
+python scripts/index_pdf.py
+```
+
+청크 수(기본 1,000개)와 임베딩 요청 수(기본 50회)는 `RAG_MAX_PDF_DOCUMENTS`와
+`RAG_MAX_PDF_EMBEDDING_REQUESTS`로 제한됩니다. 자세한 RAG 설정은 [docs/rag.md](docs/rag.md)를
+참고하세요.
+
+### 5. 개발 서버 실행
 
 ```powershell
 python -m uvicorn app.main:app --reload
