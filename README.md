@@ -222,69 +222,27 @@ Issue #5와 #16은 GitHub에서 Open이지만 관련 구현은 `main`에 반영�
 
 ## 기술 구성
 
-| 영역 | 기술 및 역할 |
+| 영역 | 기술 |
 | --- | --- |
-| 웹 UI | Next.js 16, React 19, TypeScript, Tailwind CSS 4 — 랜딩·진단·리포트 화면 |
-| 백엔드 API | Python, FastAPI, Pydantic, Uvicorn — `/api/v1` 요청 검증과 응답 제공 |
-| 설정 관리 | python-dotenv — OpenAI 모델, ChromaDB 경로, 검색·비용 제한을 환경변수로 관리 |
-| 진단 계산 | `tax_credit_service.py`, `Decimal` — 총급여 5,500만 원 경계와 연금저축 600만 원·합산 900만 원 한도를 결정론적으로 계산 |
-| 지식 데이터 | `tax_faq.json`의 가이드 1개·FAQ 30개, PyMuPDF PDF 인덱서 — 출처·기준일·검증일을 함께 관리 |
-| 벡터 검색 | ChromaDB PersistentClient, 코사인 거리 — `text-embedding-3-small` 임베딩과 기본 Top 4·최소 관련성 0.35 적용 |
-| 답변 생성 | OpenAI Responses API, 기본 `gpt-4o-mini` — 검색 근거를 바탕으로 답변과 출처 목록 반환 |
-| 테스트 | pytest — 계산 경계값, 지식베이스 검증, RAG 검색·PDF 인덱싱 동작 확인 |
+| 프론트엔드 | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
+| 백엔드 | Python, FastAPI, Pydantic, Uvicorn |
+| 계산 엔진 | `Decimal` 기반 세액공제 한도·예상 금액 계산 |
+| 지식 검색 | 공식 FAQ·PDF → OpenAI 임베딩 → ChromaDB 코사인 유사도 검색 |
+| LLM | OpenAI Responses API, 기본 `gpt-4o-mini` |
+| 설정 관리 | python-dotenv 및 환경변수 |
 
 ```mermaid
 flowchart TB
-    subgraph CLIENT["클라이언트"]
-        UI["Next.js 16 · React 19<br/>랜딩 · 2단계 진단 · 리포트 UI"]
-        API_CLIENT["Swagger UI 또는 향후 챗봇 UI"]
-    end
-
-    subgraph FASTAPI["FastAPI · /api/v1"]
-        DIAGNOSE_API["POST /tax/diagnose<br/>Pydantic 요청·응답"]
-        CHAT_API["POST /chat/query<br/>질문·출처 목록 응답"]
-    end
-
-    subgraph SERVICES["서비스 계층"]
-        TAX["세액공제 계산 서비스<br/>Decimal · 5,500만 원 경계<br/>연금저축 600만 원 · 합산 900만 원"]
-        RAG["RAG 서비스<br/>질문 검증 · 관련성 필터<br/>근거 문서·면책 정보 생성"]
-    end
-
-    subgraph KNOWLEDGE["지식베이스 적재 · 수동 실행"]
-        FAQ["tax_faq.json<br/>가이드 1개 · FAQ 30개"]
-        FAQ_INDEXER["index_tax_faq.py<br/>스키마·중복·출처 검증"]
-        PDF["검증 대상 국세청 PDF"]
-        PDF_INDEXER["index_pdf.py<br/>SHA-256 · 청크 · 요청 한도"]
-    end
-
-    subgraph RAG_INFRA["RAG 인프라"]
-        EMBEDDING["OpenAI Embeddings<br/>기본 text-embedding-3-small"]
-        VECTOR["ChromaDB PersistentClient<br/>.chroma · cosine · 컬렉션 메타데이터"]
-        LLM["OpenAI Responses API<br/>기본 gpt-4o-mini"]
-    end
-
-    UI -->|POST /api/v1/tax/diagnose| DIAGNOSE_API
-    API_CLIENT -->|POST /api/v1/chat/query| CHAT_API
-    DIAGNOSE_API --> TAX
-    TAX -->|공제대상 납입액 · 예상 세액공제액<br/>잔여 한도 · 권장 배분| UI
-
-    CHAT_API --> RAG
-    RAG -->|질문 임베딩| EMBEDDING
-    EMBEDDING --> VECTOR
-    VECTOR -->|기본 Top 4 검색 문서| RAG
-    RAG -->|관련성 점수 0.35 이상일 때만| LLM
-    LLM -->|근거 기반 답변| RAG
-    RAG -->|answer · sources| API_CLIENT
-
-    FAQ --> FAQ_INDEXER
-    PDF --> PDF_INDEXER
-    FAQ_INDEXER -->|문서 임베딩| EMBEDDING
-    PDF_INDEXER -->|문서 임베딩| EMBEDDING
+    UI["진단 · 챗봇 UI"] --> API["FastAPI API<br/>/api/v1"]
+    API --> CALC["진단 및 계산 엔진<br/>세액공제 예상 금액"]
+    API --> RAG["RAG 서비스<br/>근거 검색 · 답변 생성"]
+    DATA["공식 세법 자료<br/>FAQ · PDF"] -->|"수동 검증 · 임베딩"| VECTOR["ChromaDB<br/>코사인 유사도 검색"]
+    RAG <-->|"관련 문서 검색"| VECTOR
+    RAG --> LLM["OpenAI Responses API<br/>기본 gpt-4o-mini"]
 ```
 
-FAQ와 PDF 적재는 FastAPI 시작이나 페이지 새로고침 시 자동 실행하지 않습니다. 원문 변경을
-검증한 뒤에만 수동으로 실행해 OpenAI 임베딩 비용을 통제합니다. 검색 결과가 기본 최소
-관련성 점수(0.35)보다 낮으면 답변 모델을 호출하지 않고 근거 부족 안내를 반환합니다.
+FAQ와 PDF는 출처를 검증한 뒤 수동으로 인덱싱합니다. 검색 근거가 부족하면 답변을 생성하지
+않으며, 세부 환경변수와 인덱싱 절차는 [RAG 문서](docs/rag.md)에서 확인할 수 있습니다.
 
 ## 로컬 실행
 
