@@ -2,61 +2,103 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
 
 export default function Header() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-100 bg-white/80 backdrop-blur-md">
-      <div className="mx-auto max-w-5xl px-5 h-16 flex items-center justify-between">
+    <header
+      className="w-full h-20 flex items-center px-10 glass-panel sticky top-0 z-50"
+      style={{ borderBottom: "1px solid rgba(199,196,216,0.3)" }}
+    >
+      <div className="max-w-[1200px] mx-auto w-full flex justify-between items-center">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg text-gray-900 tracking-tight hover:opacity-80 transition-opacity">
-          <span>🏦</span>
-          <span>연금세금비서</span>
+        <Link href="/" className="flex items-center gap-2">
+          <span
+            className="material-symbols-outlined text-[32px]"
+            style={{
+              color: "var(--color-primary)",
+              fontVariationSettings: "'FILL' 1, 'wght' 500",
+            }}
+          >
+            manage_search
+          </span>
+          <span
+            className="text-2xl font-bold tracking-tight"
+            style={{
+              fontFamily: "'Hanken Grotesk', sans-serif",
+              color: "var(--color-primary)",
+            }}
+          >
+            절세택시
+          </span>
         </Link>
 
-        {/* Desktop Menu */}
-        <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-gray-600">
-          <Link href="/diagnose" className="hover:text-blue-600 transition-colors">공제율 진단</Link>
-          <Link href="/chat" className="hover:text-blue-600 transition-colors">연말정산 상담소</Link>
-          <Link href="/faq" className="hover:text-blue-600 transition-colors">이용 안내</Link>
+        {/* Desktop Nav */}
+        <nav className="hidden md:flex gap-10">
+          <a
+            href="#"
+            className="text-sm font-semibold transition-colors"
+            style={{ color: "var(--color-on-surface-variant)" }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.color = "var(--color-primary)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.color = "var(--color-on-surface-variant)")
+            }
+          >
+            About
+          </a>
+          <a
+            href="#"
+            className="text-sm font-semibold transition-colors"
+            style={{ color: "var(--color-on-surface-variant)" }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.color = "var(--color-primary)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.color = "var(--color-on-surface-variant)")
+            }
+          >
+            Manual
+          </a>
         </nav>
 
-        {/* Mobile Menu Button */}
+        {/* Mobile menu button */}
         <button
-          className="md:hidden p-1 text-gray-500 hover:text-gray-900 transition-colors"
-          onClick={() => setIsOpen(!isOpen)}
+          className="md:hidden p-2 rounded-lg"
+          style={{ color: "var(--color-on-surface-variant)" }}
+          onClick={() => setMenuOpen(!menuOpen)}
           aria-label="메뉴 열기"
         >
-          {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          <span className="material-symbols-outlined text-2xl">
+            {menuOpen ? "close" : "menu"}
+          </span>
         </button>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {isOpen && (
-        <div className="md:hidden border-b border-gray-100 bg-white px-5 py-4 flex flex-col gap-4 text-sm font-semibold text-gray-600">
-          <Link
-            href="/diagnose"
-            className="py-2 hover:text-blue-600 transition-colors"
-            onClick={() => setIsOpen(false)}
+      {/* Mobile Dropdown */}
+      {menuOpen && (
+        <div
+          className="absolute top-20 left-0 w-full glass-panel border-t px-10 py-4 flex flex-col gap-4 md:hidden"
+          style={{ borderColor: "rgba(199,196,216,0.3)" }}
+        >
+          <a
+            href="#"
+            className="text-sm font-semibold py-2"
+            style={{ color: "var(--color-on-surface-variant)" }}
+            onClick={() => setMenuOpen(false)}
           >
-            공제율 진단
-          </Link>
-          <Link
-            href="/chat"
-            className="py-2 hover:text-blue-600 transition-colors"
-            onClick={() => setIsOpen(false)}
+            About
+          </a>
+          <a
+            href="#"
+            className="text-sm font-semibold py-2"
+            style={{ color: "var(--color-on-surface-variant)" }}
+            onClick={() => setMenuOpen(false)}
           >
-            연말정산 상담소
-          </Link>
-          <Link
-            href="/faq"
-            className="py-2 hover:text-blue-600 transition-colors"
-            onClick={() => setIsOpen(false)}
-          >
-            이용 안내
-          </Link>
+            Manual
+          </a>
         </div>
       )}
     </header>

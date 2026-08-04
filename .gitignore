@@ -217,3 +217,26 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ==========================================
+# Custom Additions for RAG & Tax AI Project
+# ==========================================
+
+# 1. Environment & Secrets (비밀번호 및 API 키)
+.env
+.env.local
+.env.*.local
+
+# 2. ChromaDB & Vector Storage (대용량 로컬 DB 폴더)
+chroma_db/
+/chroma_db/
+*.sqlite3
+*.sqlite3-journal
+
+# 3. Raw Data & Uploaded Documents (원본 PDF/세무 자료 폴더)
+/data/raw/
+/data/pdfs/
+/uploads/
+*.pdf
+*.hwp
+*.xlsx
