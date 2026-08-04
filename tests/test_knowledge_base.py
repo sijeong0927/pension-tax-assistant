@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_load_current_knowledge_base_reports_missing_provenance() -> None:
     report = load_knowledge_base(PROJECT_ROOT / "app/data/tax_faq.json")
 
-    assert len(report.documents) == 21
+    assert len(report.documents) == 31
     assert report.documents[0].document_id == "guide_00"
     assert report.warnings
     assert all(
