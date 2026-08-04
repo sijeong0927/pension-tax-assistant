@@ -14,23 +14,37 @@ from app.services.knowledge_base import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_load_current_knowledge_base_reports_missing_provenance() -> None:
+def test_load_current_knowledge_base_has_verified_provenance() -> None:
     report = load_knowledge_base(PROJECT_ROOT / "app/data/tax_faq.json")
 
     assert len(report.documents) == 31
     assert report.documents[0].document_id == "guide_00"
-    assert report.warnings
+    assert report.warnings == ()
     assert all(
-        not document.provenance_verified for document in report.documents
+        document.provenance_verified for document in report.documents
     )
 
 
-def test_strict_provenance_rejects_current_draft_data() -> None:
-    with pytest.raises(KnowledgeBaseValidationError, match="출처 검증"):
-        load_knowledge_base(
-            PROJECT_ROOT / "app/data/tax_faq.json",
-            strict_provenance=True,
-        )
+def test_strict_provenance_accepts_current_knowledge_base() -> None:
+    report = load_knowledge_base(
+        PROJECT_ROOT / "app/data/tax_faq.json",
+        strict_provenance=True,
+    )
+
+    assert len(report.documents) == 31
+
+
+def test_corrected_faqs_use_official_sources_and_safe_tax_wording() -> None:
+    report = load_knowledge_base(PROJECT_ROOT / "app/data/tax_faq.json")
+    documents = {document.document_id: document for document in report.documents}
+
+    assert "세액공제 대상 납입한도" in documents["faq_22"].text
+    assert "과세대상 공적연금소득" in documents["faq_23"].text
+    assert "총급여나 종합소득의 3% 기준은 이 요건이 아닙니다" in documents["faq_26"].text
+    assert "배우자 외 상속인은 연금계좌를 승계할 수 없습니다" in documents["faq_28"].text
+    assert "연금보험료등소득ㆍ세액공제확인서" in documents["faq_29"].text
+    assert documents["faq_26"].source_url.startswith("https://www.law.go.kr/")
+    assert documents["faq_29"].source_url.startswith("https://law.go.kr/")
 
 
 def test_duplicate_questions_are_rejected(tmp_path: Path) -> None:
