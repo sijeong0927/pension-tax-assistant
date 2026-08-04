@@ -458,40 +458,187 @@ function Step2({
   );
 }
 
-// ── Step 3: 결과 리포트 ──────────────────────────────────────────────────────
+// ── Step 3: 결과 리포트 + 시뮬레이터 ─────────────────────────────────────────
+const SALARY_MAX = 150_000_000;
+const SALARY_THRESHOLD = 55_000_000;
+const PENSION_MAX = 6_000_000;
+const TOTAL_PENSION_MAX = 9_000_000;
+const PENSION_STEP = 500_000;
+const SALARY_STEP = 1_000_000;
+
+function calcSim(salary: number, pension: number, irp: number) {
+  const rate = salary <= SALARY_THRESHOLD ? 0.165 : 0.132;
+  const deductPension = Math.min(pension, PENSION_MAX);
+  const irpRoom = Math.max(TOTAL_PENSION_MAX - deductPension, 0);
+  const deductIrp = Math.min(irp, irpRoom);
+  const totalDeduct = deductPension + deductIrp;
+  const refund = Math.round(totalDeduct * rate);
+  const remaining = Math.max(TOTAL_PENSION_MAX - totalDeduct, 0);
+  const additionalRefund = Math.round(remaining * rate);
+  return { rate, deductPension, deductIrp, totalDeduct, refund, remaining, additionalRefund };
+}
+
+function sliderFill(value: number, min: number, max: number) {
+  return `${((value - min) / (max - min)) * 100}%`;
+}
+
+function SimSlider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  colorClass,
+  onChange,
+  formatVal,
+  hint,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  colorClass?: string;
+  onChange: (v: number) => void;
+  formatVal: (v: number) => string;
+  hint?: string;
+}) {
+  return (
+    <div className="sim-slider-row">
+      <div className="sim-slider-labels">
+        <span className="text-sm font-semibold" style={{ color: 'var(--color-on-surface)' }}>
+          {label}
+        </span>
+        <span
+          className="text-sm font-bold tabular-nums"
+          style={{ color: colorClass ? 'var(--color-secondary)' : 'var(--color-primary)' }}
+        >
+          {formatVal(value)}
+        </span>
+      </div>
+      <input
+        type="range"
+        className={`sim-range${colorClass ? ` sim-range--${colorClass}` : ''}`}
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        style={{ '--fill': sliderFill(value, min, max) } as React.CSSProperties}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+      <div className="flex justify-between text-xs" style={{ color: 'rgba(70,69,85,0.45)' }}>
+        <span>{formatVal(min)}</span>
+        {hint && <span style={{ color: 'rgba(70,69,85,0.6)' }}>{hint}</span>}
+        <span>{formatVal(max)}</span>
+      </div>
+    </div>
+  );
+}
+
 function Step3({
   animClass,
   result,
+  initialSalaryRange,
   onReset,
 }: {
   animClass: string;
   result: DiagnosisResult;
+  initialSalaryRange: SalaryRange;
   onReset: () => void;
 }) {
-  const rate = result.deduction_rate;
-  const ratePercent = rateLabel(rate);
-  const isHighRate = rate > 0.14;
+  // 초기값: API 결과 기반
+  const [salary, setSalary] = useState<number>(
+    initialSalaryRange === 'over' ? 70_000_000 : 40_000_000,
+  );
+  const [pension, setPension] = useState<number>(result.pension_savings_paid);
+  const [irp, setIrp] = useState<number>(result.irp_paid);
+
+  const sim = calcSim(salary, pension, irp);
+  const isHighRate = sim.rate > 0.14;
+
+  // IRP 최대값 = 9,000,000 - 연금저축 납입액 (합산 한도)
+  const irpMax = Math.min(TOTAL_PENSION_MAX - Math.min(pension, PENSION_MAX), TOTAL_PENSION_MAX);
+
+  const handlePensionChange = (v: number) => {
+    setPension(v);
+    // IRP가 합산 한도를 초과하면 자동 조정
+    const newIrpMax = Math.min(TOTAL_PENSION_MAX - Math.min(v, PENSION_MAX), TOTAL_PENSION_MAX);
+    if (irp > newIrpMax) setIrp(newIrpMax);
+  };
 
   return (
     <div className={animClass}>
       {/* Headline */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-6">
         <h2
           className="font-bold"
           style={{
             fontFamily: "'Hanken Grotesk', sans-serif",
-            fontSize: 'clamp(24px, 4vw, 30px)',
+            fontSize: 'clamp(22px, 4vw, 28px)',
             letterSpacing: '-0.01em',
             color: 'var(--color-on-surface)',
           }}
         >
           절세택시 도착! 진단 결과예요 🚕
         </h2>
+        <p className="text-sm mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>
+          슬라이더로 조건을 바꾸면 결과가 실시간으로 바뀌어요
+        </p>
       </div>
 
       <div className="flex flex-col gap-5 w-full max-w-xl mx-auto">
 
-        {/* 핵심 환급 카드 */}
+        {/* ── 시뮬레이터 패널 ── */}
+        <div className="sim-panel">
+          <div className="flex items-center gap-2 mb-2">
+            <span
+              className="material-symbols-outlined text-lg"
+              style={{ color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}
+            >
+              tune
+            </span>
+            <p
+              className="font-semibold text-sm"
+              style={{ color: 'var(--color-primary)' }}
+            >
+              조건 시뮬레이터
+            </p>
+          </div>
+
+          <SimSlider
+            label="총급여"
+            value={salary}
+            min={0}
+            max={SALARY_MAX}
+            step={SALARY_STEP}
+            onChange={setSalary}
+            formatVal={(v) => `${(v / 10_000).toLocaleString('ko-KR')}만원`}
+            hint={salary <= SALARY_THRESHOLD ? '▶ 공제율 16.5%' : '▶ 공제율 13.2%'}
+          />
+          <SimSlider
+            label="연금저축 납입액"
+            value={pension}
+            min={0}
+            max={PENSION_MAX}
+            step={PENSION_STEP}
+            onChange={handlePensionChange}
+            formatVal={formatWon}
+            hint="한도 600만원"
+          />
+          <SimSlider
+            label="IRP 납입액"
+            value={irp}
+            min={0}
+            max={irpMax}
+            step={PENSION_STEP}
+            colorClass="secondary"
+            onChange={setIrp}
+            formatVal={formatWon}
+            hint={`합산 한도 900만원 (잔여 ${formatWon(irpMax)})`}
+          />
+        </div>
+
+        {/* ── 핵심 환급 카드 (슬라이더 연동) ── */}
         <div className="result-highlight">
           <div className="result-badge">
             <span
@@ -510,14 +657,12 @@ function Step3({
               fontSize: '56px',
               lineHeight: 1.1,
               letterSpacing: '-0.03em',
+              transition: 'all 0.2s ease',
             }}
           >
-            {ratePercent}
+            {(sim.rate * 100).toFixed(1)}%
           </p>
-          <div
-            className="mt-4 pt-4"
-            style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}
-          >
+          <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
             <p className="text-sm opacity-75 mb-1">예상 세액공제 효과</p>
             <p
               className="font-bold"
@@ -525,67 +670,50 @@ function Step3({
                 fontFamily: "'Hanken Grotesk', sans-serif",
                 fontSize: '28px',
                 letterSpacing: '-0.02em',
+                transition: 'all 0.15s ease',
               }}
             >
-              {formatWon(result.estimated_refund)}
+              {formatWon(sim.refund)}
             </p>
           </div>
         </div>
 
-        {/* 상세 내역 */}
+        {/* ── 납입 상세 (슬라이더 연동) ── */}
         <div className="result-card">
-          <p
-            className="font-semibold text-sm mb-3"
-            style={{ color: 'var(--color-on-surface-variant)' }}
-          >
+          <p className="font-semibold text-sm mb-3" style={{ color: 'var(--color-on-surface-variant)' }}>
             납입 상세
           </p>
           <div className="result-metric">
             <span style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
               공제 대상 연금저축
             </span>
-            <span
-              className="font-semibold"
-              style={{ color: 'var(--color-on-surface)', fontSize: '15px' }}
-            >
-              {formatWon(result.deductible_pension_savings)}
+            <span className="font-semibold" style={{ color: 'var(--color-on-surface)', fontSize: '15px' }}>
+              {formatWon(sim.deductPension)}
             </span>
           </div>
           <div className="result-metric">
             <span style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
               공제 대상 IRP
             </span>
-            <span
-              className="font-semibold"
-              style={{ color: 'var(--color-on-surface)', fontSize: '15px' }}
-            >
-              {formatWon(result.deductible_irp)}
+            <span className="font-semibold" style={{ color: 'var(--color-on-surface)', fontSize: '15px' }}>
+              {formatWon(sim.deductIrp)}
             </span>
           </div>
           <div className="result-metric">
-            <span
-              className="font-bold"
-              style={{ color: 'var(--color-on-surface)', fontSize: '14px' }}
-            >
+            <span className="font-bold" style={{ color: 'var(--color-on-surface)', fontSize: '14px' }}>
               총 공제 대상 납입액
             </span>
-            <span
-              className="font-bold"
-              style={{ color: 'var(--color-primary)', fontSize: '16px' }}
-            >
-              {formatWon(result.deductible_amount)}
+            <span className="font-bold" style={{ color: 'var(--color-primary)', fontSize: '16px' }}>
+              {formatWon(sim.totalDeduct)}
             </span>
           </div>
         </div>
 
-        {/* 추가 납입 여력 */}
-        {result.remaining_limit > 0 && (
+        {/* ── 추가 납입 여력 ── */}
+        {sim.remaining > 0 && (
           <div
             className="result-card"
-            style={{
-              borderColor: 'rgba(108,248,187,0.4)',
-              background: 'rgba(108,248,187,0.04)',
-            }}
+            style={{ borderColor: 'rgba(108,248,187,0.4)', background: 'rgba(108,248,187,0.04)' }}
           >
             <div className="flex items-start gap-3">
               <div
@@ -594,62 +722,22 @@ function Step3({
               >
                 <span
                   className="material-symbols-outlined"
-                  style={{
-                    fontSize: '18px',
-                    color: 'var(--color-secondary)',
-                    fontVariationSettings: "'FILL' 1",
-                  }}
+                  style={{ fontSize: '18px', color: 'var(--color-secondary)', fontVariationSettings: "'FILL' 1" }}
                 >
                   tips_and_updates
                 </span>
               </div>
               <div>
-                <p
-                  className="font-semibold text-sm"
-                  style={{ color: 'var(--color-secondary)' }}
-                >
+                <p className="font-semibold text-sm" style={{ color: 'var(--color-secondary)' }}>
                   추가 납입 여력이 있어요!
                 </p>
-                <p
-                  className="text-sm mt-1"
-                  style={{ color: 'var(--color-on-surface-variant)' }}
-                >
-                  {formatWon(result.remaining_limit)} 더 납입하면{' '}
+                <p className="text-sm mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>
+                  {formatWon(sim.remaining)} 더 납입하면{' '}
                   <strong style={{ color: 'var(--color-on-surface)' }}>
-                    {formatWon(result.additional_refund_available)}
+                    {formatWon(sim.additionalRefund)}
                   </strong>{' '}
                   추가 공제 가능합니다.
                 </p>
-                {(result.recommended_additional_allocation.pension_savings > 0 ||
-                  result.recommended_additional_allocation.irp > 0) && (
-                  <div
-                    className="mt-3 pt-3 flex gap-4 text-xs"
-                    style={{ borderTop: '1px solid rgba(0,108,73,0.12)' }}
-                  >
-                    {result.recommended_additional_allocation.pension_savings > 0 && (
-                      <div>
-                        <p style={{ color: 'var(--color-on-surface-variant)' }}>추천 연금저축</p>
-                        <p
-                          className="font-bold"
-                          style={{ color: 'var(--color-secondary)', fontSize: '15px' }}
-                        >
-                          {formatWon(result.recommended_additional_allocation.pension_savings)}
-                        </p>
-                      </div>
-                    )}
-                    {result.recommended_additional_allocation.irp > 0 && (
-                      <div>
-                        <p style={{ color: 'var(--color-on-surface-variant)' }}>추천 IRP</p>
-                        <p
-                          className="font-bold"
-                          style={{ color: 'var(--color-secondary)', fontSize: '15px' }}
-                        >
-                          {formatWon(result.recommended_additional_allocation.irp)}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -669,21 +757,18 @@ function Step3({
           className="cta-btn"
           style={{ textDecoration: 'none', justifyContent: 'center' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-            smart_toy
-          </span>
+          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>smart_toy</span>
           AI 기사님과 세부 상담하기
         </Link>
         <button className="cta-btn cta-btn--secondary" onClick={onReset}>
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-            refresh
-          </span>
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>refresh</span>
           다시 진단하기
         </button>
       </div>
     </div>
   );
 }
+
 
 // ─── Loading Screen ──────────────────────────────────────────────────────────
 function LoadingScreen() {
@@ -849,7 +934,12 @@ export default function DiagnosePage() {
               onNext={handleDiagnose}
             />
           ) : result ? (
-            <Step3 animClass={animClass} result={result} onReset={handleReset} />
+            <Step3
+              animClass={animClass}
+              result={result}
+              initialSalaryRange={formData.salaryRange}
+              onReset={handleReset}
+            />
           ) : null}
         </div>
       </main>
