@@ -149,18 +149,18 @@ flowchart LR
 
 ## 구현 현황
 
-> 기준: 2026-08-04, `main` 커밋 `770dba3`
+> 기준: 2026-08-04, `main` 커밋 `47bf153`
 
 | 영역 | 상태 |
 | --- | --- |
 | FastAPI 애플리케이션, CORS 및 루트 API | ✅ 구현 |
-| 연금저축·IRP·ISA 가이드 및 FAQ 20개 | ✅ 데이터 추가 |
+| 연금저축·IRP·ISA 가이드 및 FAQ 30개 | ✅ 출처 메타데이터 포함 |
 | 연금계좌 세액공제 계산 서비스 및 단위 테스트 | ✅ 구현 |
 | `POST /api/v1/tax/diagnose` 진단 API | ✅ 구현 |
-| ChromaDB 임베딩·검색 및 OpenAI RAG 엔진 | ✅ 구현 |
+| ChromaDB 임베딩·검색, OpenAI RAG 엔진 및 PDF 인덱서 | ✅ 구현 |
 | `POST /api/v1/chat/query` 챗봇 API | ✅ 구현 |
-| Next.js/React 기본 레이아웃 | ✅ 구현 |
-| 진단·리포트·챗봇 완성 UI | 🚧 개발 예정 |
+| Next.js 랜딩·진단·리포트 UI | ✅ 구현 |
+| 챗봇 화면, 호출 제한 및 운영용 인증 | 🚧 개발 예정 |
 
 ### 최신 반영 내용
 
@@ -169,15 +169,17 @@ flowchart LR
 - `app/api/v1/chat.py`: 질문을 받아 `RAGService`를 호출하고 답변과 참조 문서를 반환하는 챗봇 API
 - `app/services/rag_service.py`: ChromaDB 검색, 관련성 기준 확인, OpenAI 답변 생성과 출처 반환
 - `app/core/`: 환경변수 설정, 공통 프롬프트와 ChromaDB 컬렉션 관리
-- `app/data/tax_faq.json`: 연금저축·IRP 가이드와 ISA를 포함한 FAQ 20개
+- `app/data/tax_faq.json`: 가이드 1개와 FAQ 30개, 각 문서의 출처·기준일·검증일 메타데이터
 - `app/services/tax_credit_service.py`: 총급여 5,500만 원 경계, 연금저축 600만 원·합산 900만 원 한도, 예상 세액공제액과 추가 납입 권장액 계산
-- `frontend/`: Next.js/React와 Tailwind CSS 기반 헤더·푸터·메인 레이아웃
-- `tests/`: 계산 서비스, 지식베이스와 RAG 서비스를 검증하는 테스트
+- `scripts/index_tax_faq.py`: 지식베이스 스키마·중복·출처 메타데이터를 검증한 뒤 FAQ를 수동 인덱싱
+- `scripts/index_pdf.py`: 국세청 PDF SHA-256 검증, 청크 분할, 임베딩 요청 한도와 원자적 교체를 처리하는 PDF 인덱서
+- `frontend/`: Next.js/React와 Tailwind CSS 기반 랜딩, 2단계 진단, 결과 리포트 UI 및 진단 API 연동
+- `tests/`: 계산 서비스, 지식베이스, RAG 서비스 및 PDF 인덱서를 검증하는 테스트
 
-FAQ 데이터는 RAG 입력용 초안입니다. 실제 상담 답변에 사용하기 전 각 항목의 공식 출처 URL, 적용 기준일, 예외 조건을 검증하고 보강해야 합니다.
-PR #17에서는 Swagger UI를 통해 챗봇 API의 `200 OK`, 답변 텍스트와 참조 출처
-메타데이터 반환을 수동 확인했습니다. 챗봇 HTTP 엔드포인트 전용 자동화 테스트는
-아직 추가되지 않았습니다.
+FAQ는 엄격 모드(`--strict-provenance`)에서 출처 메타데이터 누락을 차단합니다. 다만 세법은
+개정될 수 있으므로 신규 FAQ·PDF를 넣을 때는 공식 출처, 적용 기준일과 예외 조건을 다시
+검증해야 합니다. 챗봇 HTTP 엔드포인트 전용 자동화 테스트와 호출 제한은 아직 추가되지
+않았습니다.
 
 ## GitHub 이슈 및 PR
 
@@ -194,7 +196,8 @@ PR #17에서는 Swagger UI를 통해 챗봇 API의 `200 OK`, 답변 텍스트와
 | [#5](https://github.com/sijeong0927/pension-tax-assistant/issues/5) | Next.js/React 초기 구성 | 미지정 | Open | PR #14, `main` 반영 |
 | [#12](https://github.com/sijeong0927/pension-tax-assistant/issues/12) (프로젝트 Issue #6) | 연금 세액공제 진단 API | `@sijeong0927` | Closed | PR #15, `main` 반영 |
 | [#13](https://github.com/sijeong0927/pension-tax-assistant/issues/13) (프로젝트 Issue #7) | RAG 챗봇 질문 답변 API | 미지정 | Closed | PR #17, `main` 반영 |
-| [#16](https://github.com/sijeong0927/pension-tax-assistant/issues/16) (프로젝트 Issue #8) | 연금 세제 지식·FAQ 데이터 추가 | 미지정 | Open | 미반영 |
+| [#16](https://github.com/sijeong0927/pension-tax-assistant/issues/16) (프로젝트 Issue #8) | 연금 세제 지식·FAQ 데이터 추가 | 미지정 | Open | PR #20으로 코드 반영, 이슈는 미종료 |
+| [#22](https://github.com/sijeong0927/pension-tax-assistant/issues/22) | 일반 연말정산 FAQ 지식 데이터 확장 | 미지정 | Open | 미반영 |
 
 ### 주요 기능 Pull Requests
 
@@ -209,30 +212,79 @@ PR #17에서는 Swagger UI를 통해 챗봇 API의 `200 OK`, 답변 텍스트와
 | [#14](https://github.com/sijeong0927/pension-tax-assistant/pull/14) | Next.js/React 초기 구성 | Merged | 커밋 `98370f1`로 반영 |
 | [#15](https://github.com/sijeong0927/pension-tax-assistant/pull/15) | 연금 세액공제 진단 API | Merged | 커밋 `81a2274`로 반영 |
 | [#17](https://github.com/sijeong0927/pension-tax-assistant/pull/17) | RAG AI 챗봇 질문 답변 API | Merged | 커밋 `770dba3`로 반영 |
+| [#19](https://github.com/sijeong0927/pension-tax-assistant/pull/19) | RAG 챗봇 API README 반영 | Merged | `main` 반영 |
+| [#20](https://github.com/sijeong0927/pension-tax-assistant/pull/20) | 연금 세제 FAQ 추가 및 2025 연말정산 PDF 인덱서 | Merged | `main` 반영 |
+| [#21](https://github.com/sijeong0927/pension-tax-assistant/pull/21) | 프론트엔드 UI 수정 | Merged | `main` 반영 |
 
 PR #6·#7·#8은 GitHub에서 병합되지 않은 PR로 표시되지만 변경 내용은 `main`에 별도 병합 커밋으로 반영됐습니다. 더 이상 사용하지 않는 원격 작업 브랜치는 확인 후 정리해야 합니다.
-Issue #5는 GitHub에서 Open이지만 PR #14의 코드는 `main`에 반영돼 있습니다.
+Issue #5와 #16은 GitHub에서 Open이지만 관련 구현은 `main`에 반영돼 있습니다.
 이슈 상태와 코드 상태가 다르므로 저장소 관리자가 확인 후 이슈를 정리해야 합니다.
 
 ## 기술 구성
 
-| 영역 | 기술 |
+| 영역 | 기술 및 역할 |
 | --- | --- |
-| 백엔드 | Python, FastAPI, Uvicorn |
-| 설정 관리 | python-dotenv |
-| 계산 엔진 | Python 조건 분기 및 산식 |
-| 프론트엔드 | Next.js/React, Tailwind CSS |
-| 지식 검색 | ChromaDB 코사인 유사도 기반 RAG |
-| LLM | OpenAI Responses API, 기본 `gpt-4o-mini` |
+| 웹 UI | Next.js 16, React 19, TypeScript, Tailwind CSS 4 — 랜딩·진단·리포트 화면 |
+| 백엔드 API | Python, FastAPI, Pydantic, Uvicorn — `/api/v1` 요청 검증과 응답 제공 |
+| 설정 관리 | python-dotenv — OpenAI 모델, ChromaDB 경로, 검색·비용 제한을 환경변수로 관리 |
+| 진단 계산 | `tax_credit_service.py`, `Decimal` — 총급여 5,500만 원 경계와 연금저축 600만 원·합산 900만 원 한도를 결정론적으로 계산 |
+| 지식 데이터 | `tax_faq.json`의 가이드 1개·FAQ 30개, PyMuPDF PDF 인덱서 — 출처·기준일·검증일을 함께 관리 |
+| 벡터 검색 | ChromaDB PersistentClient, 코사인 거리 — `text-embedding-3-small` 임베딩과 기본 Top 4·최소 관련성 0.35 적용 |
+| 답변 생성 | OpenAI Responses API, 기본 `gpt-4o-mini` — 검색 근거를 바탕으로 답변과 출처 목록 반환 |
+| 테스트 | pytest — 계산 경계값, 지식베이스 검증, RAG 검색·PDF 인덱싱 동작 확인 |
 
 ```mermaid
 flowchart TB
-    UI["진단·챗봇 UI"] --> API["FastAPI"]
-    API --> ENGINE["진단 및 계산 엔진"]
-    API --> RAG["RAG 서비스"]
-    RAG --> VECTOR["세법 자료 Vector DB"]
-    RAG --> LLM["LLM"]
+    subgraph CLIENT["클라이언트"]
+        UI["Next.js 16 · React 19<br/>랜딩 · 2단계 진단 · 리포트 UI"]
+        API_CLIENT["Swagger UI 또는 향후 챗봇 UI"]
+    end
+
+    subgraph FASTAPI["FastAPI · /api/v1"]
+        DIAGNOSE_API["POST /tax/diagnose<br/>Pydantic 요청·응답"]
+        CHAT_API["POST /chat/query<br/>질문·출처 목록 응답"]
+    end
+
+    subgraph SERVICES["서비스 계층"]
+        TAX["세액공제 계산 서비스<br/>Decimal · 5,500만 원 경계<br/>연금저축 600만 원 · 합산 900만 원"]
+        RAG["RAG 서비스<br/>질문 검증 · 관련성 필터<br/>근거 문서·면책 정보 생성"]
+    end
+
+    subgraph KNOWLEDGE["지식베이스 적재 · 수동 실행"]
+        FAQ["tax_faq.json<br/>가이드 1개 · FAQ 30개"]
+        FAQ_INDEXER["index_tax_faq.py<br/>스키마·중복·출처 검증"]
+        PDF["검증 대상 국세청 PDF"]
+        PDF_INDEXER["index_pdf.py<br/>SHA-256 · 청크 · 요청 한도"]
+    end
+
+    subgraph RAG_INFRA["RAG 인프라"]
+        EMBEDDING["OpenAI Embeddings<br/>기본 text-embedding-3-small"]
+        VECTOR["ChromaDB PersistentClient<br/>.chroma · cosine · 컬렉션 메타데이터"]
+        LLM["OpenAI Responses API<br/>기본 gpt-4o-mini"]
+    end
+
+    UI -->|POST /api/v1/tax/diagnose| DIAGNOSE_API
+    API_CLIENT -->|POST /api/v1/chat/query| CHAT_API
+    DIAGNOSE_API --> TAX
+    TAX -->|공제대상 납입액 · 예상 세액공제액<br/>잔여 한도 · 권장 배분| UI
+
+    CHAT_API --> RAG
+    RAG -->|질문 임베딩| EMBEDDING
+    EMBEDDING --> VECTOR
+    VECTOR -->|기본 Top 4 검색 문서| RAG
+    RAG -->|관련성 점수 0.35 이상일 때만| LLM
+    LLM -->|근거 기반 답변| RAG
+    RAG -->|answer · sources| API_CLIENT
+
+    FAQ --> FAQ_INDEXER
+    PDF --> PDF_INDEXER
+    FAQ_INDEXER -->|문서 임베딩| EMBEDDING
+    PDF_INDEXER -->|문서 임베딩| EMBEDDING
 ```
+
+FAQ와 PDF 적재는 FastAPI 시작이나 페이지 새로고침 시 자동 실행하지 않습니다. 원문 변경을
+검증한 뒤에만 수동으로 실행해 OpenAI 임베딩 비용을 통제합니다. 검색 결과가 기본 최소
+관련성 점수(0.35)보다 낮으면 답변 모델을 호출하지 않고 근거 부족 안내를 반환합니다.
 
 ## 로컬 실행
 
@@ -297,7 +349,7 @@ python -m uvicorn app.main:app --reload
 }
 ```
 
-### 5. 챗봇 API 호출
+### 6. 챗봇 API 호출
 
 Swagger UI 또는 `POST /api/v1/chat/query`로 질문을 전달합니다.
 
@@ -335,7 +387,7 @@ Swagger UI 또는 `POST /api/v1/chat/query`로 질문을 전달합니다.
 질문과 검색 결과에 따라 달라집니다. 현재 API는 대화 이력이나 세션을 받지 않는
 단일 질문 방식이며, 공개 배포 전 호출 제한과 안전한 오류 응답을 보강해야 합니다.
 
-### 6. 테스트 실행
+### 7. 테스트 실행
 
 ```powershell
 pytest
@@ -361,7 +413,8 @@ pension-tax-assistant/
 │   │   ├── prompts.py
 │   │   └── vector_db.py
 │   ├── data/
-│   │   └── tax_faq.json
+│   │   ├── tax_faq.json
+│   │   └── pdfs/                # 로컬 원문 PDF 경로(PDF 파일은 Git 제외)
 │   ├── models/
 │   │   └── rag.py
 │   └── services/
@@ -371,16 +424,25 @@ pension-tax-assistant/
 ├── docs/
 │   └── rag.md
 ├── scripts/
-│   └── index_tax_faq.py
+│   ├── index_tax_faq.py
+│   └── index_pdf.py
 ├── frontend/
+│   ├── package.json
 │   └── src/
+│       ├── app/
+│       │   ├── page.tsx
+│       │   └── diagnose/page.tsx
+│       └── components/
+│           ├── Footer.tsx
+│           └── Header.tsx
 └── tests/
+    ├── test_index_pdf.py
     ├── test_knowledge_base.py
     ├── test_rag_service.py
     └── test_tax_credit_service.py
 ```
 
-완성된 진단·리포트·챗봇 UI와 운영용 인증·호출 제한은 아직 구현 전입니다.
+진단·리포트 UI는 구현되어 있으나, 별도 챗봇 화면과 운영용 인증·호출 제한은 아직 구현 전입니다.
 
 ## 목표 프로젝트 구조
 
@@ -396,8 +458,6 @@ pension-tax-assistant/
 │
 ├── app/                        # Backend (FastAPI)
 │   ├── main.py                 # FastAPI 실행, CORS 및 라우터 등록
-│   ├── config.py               # 환경변수 및 앱 설정
-│   │
 │   ├── api/
 │   │   └── v1/
 │   │       ├── diagnose.py     # POST /api/v1/tax/diagnose
@@ -408,7 +468,8 @@ pension-tax-assistant/
 │   │   └── rag_service.py      # 검색 및 LLM 답변 생성
 │   │
 │   ├── core/
-│   │   ├── db.py               # SQLite 연결
+│   │   ├── config.py           # 환경변수 및 앱 설정
+│   │   ├── db.py               # SQLite 연결(향후)
 │   │   ├── vector_db.py        # Vector DB 초기화
 │   │   └── prompts.py          # 챗봇 프롬프트 및 답변 정책
 │   │
@@ -421,8 +482,8 @@ pension-tax-assistant/
 │
 └── frontend/
     ├── src/
+    │   ├── app/                # App Router: 진단, 리포트, 챗봇 페이지
     │   ├── components/         # 버튼, 슬라이더, 카드, 대화창
-    │   ├── pages/              # 진단, 리포트, 챗봇 페이지
     │   └── services/           # 백엔드 API 통신
     └── package.json
 ```
@@ -449,17 +510,17 @@ pension-tax-assistant/
 
 - [x] 프로젝트 저장소 및 FastAPI 기본 환경 구성 (#1 코드 반영)
 - [x] CORS 및 상태 확인 API 구현 (#1 코드 반영)
-- [x] 연금저축·IRP·ISA FAQ 20개 초안 추가 (#2 코드 반영)
+- [x] 연금저축·IRP·ISA FAQ 30개와 출처 메타데이터 추가, 2025 연말정산 PDF 인덱서 구현 (#20)
 - [x] 연금계좌 세액공제 계산 서비스 구현 (#3)
 - [x] 계산 서비스 단위 테스트 16개 작성 (#3)
 - [x] ChromaDB 및 OpenAI RAG 파이프라인 구축 (#4)
-- [x] Next.js/React 기본 레이아웃 구현 (#5 코드 반영)
+- [x] Next.js/React 랜딩·진단·리포트 UI 구현 (#21)
 - [x] 연금 세액공제 진단 API 구현 (#12, 프로젝트 Issue #6)
 - [x] RAG 챗봇 질문 답변 API 구현 (#13, 프로젝트 Issue #7)
-- [ ] FAQ 공식 출처·기준일·예외 조건 검증
+- [ ] 일반 연말정산 FAQ 지식 데이터 확장 (#22)
 - [ ] 챗봇 API 자동화 테스트, 호출 제한과 안전한 오류 응답 보강
 - [ ] 사용자 상태 기반 추천 질문 생성
-- [ ] 진단·리포트·챗봇 UI 구현 (#5)
+- [ ] 챗봇 UI 구현
 - [ ] 통합 테스트 및 최종 시연
 
 ## 세법 기준 및 참고 자료
