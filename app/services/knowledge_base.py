@@ -24,6 +24,7 @@ class KnowledgeDocument:
     source_url: str
     effective_date: str
     last_verified: str
+    source_chunk_ids: str
     provenance_verified: bool
 
     def to_metadata(self) -> dict[str, str | bool]:
@@ -35,6 +36,7 @@ class KnowledgeDocument:
             "source_url": self.source_url,
             "effective_date": self.effective_date,
             "last_verified": self.last_verified,
+            "source_chunk_ids": self.source_chunk_ids,
             "provenance_verified": self.provenance_verified,
         }
 
@@ -78,6 +80,19 @@ def _iso_date(value: str, field_name: str, *, required: bool) -> str:
 def _normalized(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).lower()
     return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _source_chunk_ids(raw_document: dict[str, Any], prefix: str) -> str:
+    raw_ids = raw_document.get("source_chunk_ids", [])
+    if not isinstance(raw_ids, list) or not all(
+        isinstance(chunk_id, str)
+        and re.fullmatch(r"pdf_page_\d{3}_chunk_\d{2,3}", chunk_id)
+        for chunk_id in raw_ids
+    ):
+        raise KnowledgeBaseValidationError(
+            f"{prefix}.source_chunk_ids는 pdf_page_*_chunk_* 문자열 배열이어야 합니다."
+        )
+    return ",".join(raw_ids)
 
 
 def _document_provenance(
@@ -167,6 +182,7 @@ def load_knowledge_base(
                 source_url=source_url,
                 effective_date=effective_date,
                 last_verified=last_verified,
+                source_chunk_ids=_source_chunk_ids(raw_guide, "guide"),
                 provenance_verified=verified,
             )
         )
@@ -214,6 +230,7 @@ def load_knowledge_base(
                 source_url=source_url,
                 effective_date=effective_date,
                 last_verified=last_verified,
+                source_chunk_ids=_source_chunk_ids(raw_faq, prefix),
                 provenance_verified=verified,
             )
         )
