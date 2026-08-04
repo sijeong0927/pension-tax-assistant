@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import diagnose
+from app.api.v1 import diagnose, chat
 
 app = FastAPI(title="Pension Tax Assistant API")
 
@@ -15,6 +15,7 @@ app.add_middleware(
 
 # 라우터 연결
 app.include_router(diagnose.router, prefix="/api/v1", tags=["Tax Diagnosis"])
+app.include_router(chat.router, prefix="/api/v1", tags=["RAG Chatbot"])
 
 
 @app.get("/")
