@@ -1,25 +1,16 @@
-from dataclasses import dataclass
+﻿from dataclasses import dataclass
+from decimal import Decimal, ROUND_HALF_UP
 
 
 INCOME_UNDER_55M = "under_55m"
 INCOME_OVER_55M = "over_55m"
 
-DEDUCTION_RATE_UNDER_55M = 0.165
-DEDUCTION_RATE_OVER_55M = 0.132
+SALARY_THRESHOLD = 55_000_000
+DEDUCTION_RATE_UNDER_55M = Decimal("0.165")
+DEDUCTION_RATE_OVER_55M = Decimal("0.132")
 
 PENSION_SAVINGS_LIMIT = 6_000_000
 TOTAL_PENSION_LIMIT = 9_000_000
-
-INCOME_RANGE_ALIASES = {
-    INCOME_UNDER_55M: INCOME_UNDER_55M,
-    "under": INCOME_UNDER_55M,
-    "below_55m": INCOME_UNDER_55M,
-    "lte_55m": INCOME_UNDER_55M,
-    INCOME_OVER_55M: INCOME_OVER_55M,
-    "over": INCOME_OVER_55M,
-    "above_55m": INCOME_OVER_55M,
-    "gt_55m": INCOME_OVER_55M,
-}
 
 
 @dataclass(frozen=True)
@@ -30,8 +21,9 @@ class RecommendedAllocation:
 
 @dataclass(frozen=True)
 class TaxCreditDiagnosis:
+    total_salary: int
     income_range: str
-    deduction_rate: float
+    deduction_rate: Decimal
     pension_savings_limit: int
     total_pension_limit: int
     pension_savings_paid: int
@@ -46,33 +38,34 @@ class TaxCreditDiagnosis:
     message: str
 
 
-def normalize_income_range(income_range: str) -> str:
-    try:
-        normalized = INCOME_RANGE_ALIASES[income_range.strip()]
-    except (AttributeError, KeyError) as exc:
-        raise ValueError(
-            "income_range must be one of: under_55m, over_55m, "
-            "below_55m, above_55m, lte_55m, gt_55m"
-        ) from exc
+def _validate_won_amount(name: str, amount: int) -> None:
+    if isinstance(amount, bool) or not isinstance(amount, int):
+        raise TypeError(f"{name} must be an integer amount in won")
 
-    return normalized
+    if amount < 0:
+        raise ValueError(f"{name} must be greater than or equal to 0")
 
 
-def get_deduction_rate(income_range: str) -> float:
-    normalized_income_range = normalize_income_range(income_range)
+def determine_income_range(total_salary: int) -> str:
+    _validate_won_amount("total_salary", total_salary)
 
-    if normalized_income_range == INCOME_UNDER_55M:
+    if total_salary <= SALARY_THRESHOLD:
+        return INCOME_UNDER_55M
+
+    return INCOME_OVER_55M
+
+
+def get_deduction_rate(total_salary: int) -> Decimal:
+    income_range = determine_income_range(total_salary)
+
+    if income_range == INCOME_UNDER_55M:
         return DEDUCTION_RATE_UNDER_55M
 
     return DEDUCTION_RATE_OVER_55M
 
 
-def _validate_paid_amount(name: str, amount: int) -> None:
-    if not isinstance(amount, int):
-        raise TypeError(f"{name} must be an integer amount in won")
-
-    if amount < 0:
-        raise ValueError(f"{name} must be greater than or equal to 0")
+def _round_won(amount: Decimal) -> int:
+    return int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 def _calculate_recommended_additional_allocation(
@@ -97,55 +90,57 @@ def _calculate_recommended_additional_allocation(
 
 
 def _build_message(
-    deduction_rate: float,
+    deduction_rate: Decimal,
     deductible_amount: int,
     remaining_limit: int,
 ) -> str:
-    refund_rate_percent = deduction_rate * 100
+    refund_rate_percent = deduction_rate * Decimal("100")
 
     if remaining_limit == 0:
         return (
-            "The annual pension tax credit limit is fully used. "
-            f"The applied credit rate is {refund_rate_percent:.1f}%."
+            f"연금계좌 세액공제 한도 {TOTAL_PENSION_LIMIT:,}원을 모두 채웠습니다. "
+            f"현재 적용 공제율은 {refund_rate_percent:.1f}%입니다."
         )
 
     if deductible_amount == 0:
         return (
-            f"The applied credit rate is {refund_rate_percent:.1f}%. "
-            "You can create up to 9,000,000 won of deductible pension contributions."
+            f"현재 적용 공제율은 {refund_rate_percent:.1f}%입니다. "
+            f"연금저축과 IRP를 활용해 최대 {TOTAL_PENSION_LIMIT:,}원까지 "
+            "세액공제 대상 납입액을 만들 수 있습니다."
         )
 
     return (
-        f"The applied credit rate is {refund_rate_percent:.1f}%. "
-        f"You can add {remaining_limit:,} won before reaching the annual limit."
+        f"현재 적용 공제율은 {refund_rate_percent:.1f}%입니다. "
+        f"세액공제 한도까지 추가로 {remaining_limit:,}원 납입할 수 있습니다."
     )
 
 
 def calculate_tax_credit_diagnosis(
-    income_range: str,
+    total_salary: int,
     pension_savings_paid: int = 0,
     irp_paid: int = 0,
 ) -> TaxCreditDiagnosis:
-    _validate_paid_amount("pension_savings_paid", pension_savings_paid)
-    _validate_paid_amount("irp_paid", irp_paid)
+    _validate_won_amount("pension_savings_paid", pension_savings_paid)
+    _validate_won_amount("irp_paid", irp_paid)
 
-    normalized_income_range = normalize_income_range(income_range)
-    deduction_rate = get_deduction_rate(normalized_income_range)
+    income_range = determine_income_range(total_salary)
+    deduction_rate = get_deduction_rate(total_salary)
 
     deductible_pension_savings = min(pension_savings_paid, PENSION_SAVINGS_LIMIT)
     remaining_after_pension_savings = TOTAL_PENSION_LIMIT - deductible_pension_savings
     deductible_irp = min(irp_paid, max(remaining_after_pension_savings, 0))
     deductible_amount = deductible_pension_savings + deductible_irp
-    estimated_refund = int(round(deductible_amount * deduction_rate))
+    estimated_refund = _round_won(Decimal(deductible_amount) * deduction_rate)
     remaining_limit = max(TOTAL_PENSION_LIMIT - deductible_amount, 0)
-    additional_refund_available = int(round(remaining_limit * deduction_rate))
+    additional_refund_available = _round_won(Decimal(remaining_limit) * deduction_rate)
     recommended_allocation = _calculate_recommended_additional_allocation(
         pension_savings_paid=pension_savings_paid,
         irp_paid=irp_paid,
     )
 
     return TaxCreditDiagnosis(
-        income_range=normalized_income_range,
+        total_salary=total_salary,
+        income_range=income_range,
         deduction_rate=deduction_rate,
         pension_savings_limit=PENSION_SAVINGS_LIMIT,
         total_pension_limit=TOTAL_PENSION_LIMIT,
