@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class RAGSource(BaseModel):
+    citation_number: int = Field(ge=1)
     document_id: str
     title: str
     category: str

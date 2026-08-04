@@ -149,25 +149,33 @@ flowchart LR
 
 ## 구현 현황
 
-> 기준: 2026-08-04, `main` 커밋 `e4998c3`
+> 기준: 2026-08-04, 작업 브랜치 `7-ai-chat-api`
+>
+> 브랜치 기준점: 최신 `main` 커밋 `770dba3`
 
 | 영역 | 상태 |
 | --- | --- |
 | FastAPI 애플리케이션, CORS 및 상태 확인 API | ✅ 구현 |
 | 연금저축·IRP·ISA 가이드 및 FAQ 20개 | ✅ 데이터 추가 |
 | 연금계좌 세액공제 계산 서비스 및 단위 테스트 | ✅ 구현 |
-| 진단 요청·응답 스키마 및 API | 🚧 개발 예정 |
-| RAG 검색 및 AI 답변 API | 🚧 개발 예정 |
-| 진단·리포트·챗봇 프론트엔드 | 🚧 개발 예정 |
-| ChromaDB 임베딩 및 검색 파이프라인 | 🚧 개발 예정 |
+| `POST /api/v1/tax/diagnose` 진단 API | ✅ `main` 구현 |
+| ChromaDB 임베딩·검색 및 OpenAI RAG 엔진 | ✅ `main` 구현 |
+| `POST /api/v1/chat/query` 챗봇 API | ✅ `main` 기본 구현, 현재 브랜치 보강 |
+| Next.js/React 기본 레이아웃 | ✅ `main` 구현 |
+| 진단·리포트·챗봇 완성 UI | 🚧 개발 예정 |
 
 ### 최신 반영 내용
 
-- `app/main.py`: FastAPI 앱, React 개발 서버용 CORS, `/`, `/api/v1/health` 상태 확인 API
-- `app/data/tax_faq.json`: 연금저축·IRP 가이드와 ISA를 포함한 FAQ 20개
+- `app/main.py`: FastAPI 앱, React 개발 서버용 CORS, 상태 확인·진단·챗봇 라우터 등록
+- `app/api/v1/diagnose.py`: 연금 세액공제 계산 서비스를 호출하는 진단 API
+- `app/api/v1/chat.py`: 질문·선택적 대화 이력을 받는 RAG 챗봇 HTTP API, 안전한 오류 응답, 호출 제한
+- `app/models/chat.py`: 질문 2,000자와 대화 이력 크기를 제한하는 요청·응답 스키마
+- `app/services/rag_service.py`: ChromaDB 검색, 근거 부족 차단, OpenAI 답변 생성, 출처와 인용 번호 검증
+- `app/core/rate_limit.py`: 단일 프로세스용 클라이언트별 분당·일일 호출 제한
+- `app/data/tax_faq.json`: 연금저축·IRP 가이드 1개와 ISA를 포함한 FAQ 20개
 - `app/services/tax_credit_service.py`: 총급여 5,500만 원 경계, 연금저축 600만 원·합산 900만 원 한도, 예상 세액공제액과 추가 납입 권장액 계산
-- `tests/test_tax_credit_service.py`: 경계값, 한도, 입력 검증을 포함한 단위 테스트 16개
-- `requirements.txt`: FastAPI, Uvicorn, python-dotenv, pytest 의존성
+- `frontend/`: Next.js/React와 Tailwind CSS 기반 기본 헤더·푸터·메인 레이아웃
+- `tests/`: 계산, 설정, 지식베이스, RAG 서비스, 챗봇 API와 호출 제한을 검증하는 테스트
 
 FAQ 데이터는 RAG 입력용 초안입니다. 실제 상담 답변에 사용하기 전 각 항목의 공식 출처 URL, 적용 기준일, 예외 조건을 검증하고 보강해야 합니다.
 
@@ -182,8 +190,10 @@ FAQ 데이터는 RAG 입력용 초안입니다. 실제 상담 답변에 사용�
 | [#1](https://github.com/sijeong0927/pension-tax-assistant/issues/1) | FastAPI 기본 서버 및 CORS | `@sijeong0927` | Closed | `main` 반영 |
 | [#2](https://github.com/sijeong0927/pension-tax-assistant/issues/2) | 국세청 절세 가이드 및 FAQ 수집 | `@parkhanbyeol0110-del` | Closed | `main` 반영 |
 | [#3](https://github.com/sijeong0927/pension-tax-assistant/issues/3) | 소득·계좌 기준 진단 로직 | `@leeyoungeun942` | Closed | `main` 반영 |
-| [#4](https://github.com/sijeong0927/pension-tax-assistant/issues/4) | ChromaDB 및 RAG 기초 엔진 | `@kanghongsin` | Open | Draft PR #10, `main` 미반영 |
-| [#5](https://github.com/sijeong0927/pension-tax-assistant/issues/5) | Next.js/React 초기 구성 | 미지정 | Open | 미반영 |
+| [#4](https://github.com/sijeong0927/pension-tax-assistant/issues/4) | ChromaDB 및 RAG 기초 엔진 | `@kanghongsin` | Closed | PR #10, `main` 반영 |
+| [#5](https://github.com/sijeong0927/pension-tax-assistant/issues/5) | Next.js/React 초기 구성 | 미지정 | Open | PR #14, `main` 반영 |
+| [#12](https://github.com/sijeong0927/pension-tax-assistant/issues/12) (프로젝트 Issue #6) | 연금 세액공제 진단 API | `@sijeong0927` | Closed | PR #15, `main` 반영 |
+| [#13](https://github.com/sijeong0927/pension-tax-assistant/issues/13) (프로젝트 Issue #7) | RAG 챗봇 질문 답변 API | `@kanghongsin` | Closed | PR #17, `main` 반영 |
 
 ### 주요 기능 Pull Requests
 
@@ -193,7 +203,11 @@ FAQ 데이터는 RAG 입력용 초안입니다. 실제 상담 답변에 사용�
 | [#7](https://github.com/sijeong0927/pension-tax-assistant/pull/7) | FastAPI 기본 서버 및 CORS 설정 | Closed, 미병합 표시 | 커밋 `48e4d27`로 반영 |
 | [#8](https://github.com/sijeong0927/pension-tax-assistant/pull/8) | 연금계좌 세액공제 진단 로직 구현 | Closed, 미병합 표시 | 커밋 `bbacacf`로 반영 |
 | [#9](https://github.com/sijeong0927/pension-tax-assistant/pull/9) | 진단 로직 리뷰 반영 및 검증 | Merged | 커밋 `e4998c3`로 반영 |
-| [#10](https://github.com/sijeong0927/pension-tax-assistant/pull/10) | ChromaDB RAG 챗봇 기초 엔진 | Draft, Open | 미반영 |
+| [#10](https://github.com/sijeong0927/pension-tax-assistant/pull/10) | ChromaDB RAG 챗봇 기초 엔진 | Merged | 커밋 `936f884`로 반영 |
+| [#11](https://github.com/sijeong0927/pension-tax-assistant/pull/11) | README 및 기여자 가이드 | Merged | `main` 반영 |
+| [#14](https://github.com/sijeong0927/pension-tax-assistant/pull/14) | Next.js/React 초기 구성 | Merged | 커밋 `98370f1`로 반영 |
+| [#15](https://github.com/sijeong0927/pension-tax-assistant/pull/15) | 연금 세액공제 진단 API | Merged | 커밋 `81a2274`로 반영 |
+| [#17](https://github.com/sijeong0927/pension-tax-assistant/pull/17) | RAG AI 챗봇 질문 답변 API | Merged | 커밋 `770dba3`로 반영 |
 
 PR #6·#7·#8은 GitHub에서 병합되지 않은 PR로 표시되지만 변경 내용은 `main`에 별도 병합 커밋으로 반영됐습니다. 더 이상 사용하지 않는 원격 작업 브랜치는 확인 후 정리해야 합니다.
 
@@ -204,9 +218,9 @@ PR #6·#7·#8은 GitHub에서 병합되지 않은 PR로 표시되지만 변경 �
 | 백엔드 | Python, FastAPI, Uvicorn |
 | 설정 관리 | python-dotenv |
 | 계산 엔진 | Python 조건 분기 및 산식 |
-| 프론트엔드 | Next.js/React, Tailwind CSS 예정 (#5) |
-| 지식 검색 | ChromaDB 기반 RAG 예정 (#4), LangChain 적용 여부 검토 |
-| LLM | OpenAI GPT-4o-mini 연동 예정 (#4) |
+| 프론트엔드 | Next.js/React, Tailwind CSS |
+| 지식 검색 | ChromaDB 코사인 유사도 기반 RAG |
+| LLM | OpenAI Responses API, 기본 `gpt-4o-mini` |
 
 ```mermaid
 flowchart TB
@@ -261,7 +275,81 @@ uvicorn app.main:app --reload
 }
 ```
 
-### 4. 테스트 실행
+### 4. 챗봇 API 호출
+
+먼저 `.env`에 `OPENAI_API_KEY`를 설정하고, FAQ 원문이 변경됐을 때 한 번만
+지식베이스를 적재합니다.
+
+```powershell
+python scripts/index_tax_faq.py
+```
+
+`POST /api/v1/chat/query`는 현재 질문과 선택적 대화 이력을 받습니다. 대화 이력은
+서버에 저장되지 않으므로 후속 질문에 필요한 최근 이력을 클라이언트가 매 요청마다
+다시 전달해야 합니다.
+
+서버 비저장과 외부 처리는 별개입니다. 현재 질문과 최근 사용자 이력은 OpenAI
+임베딩 API로, 현재 질문과 전체 이력은 OpenAI Responses API로 전송됩니다.
+주민등록번호·계좌번호·카드번호의 일반적인 형식은 요청 검증에서 거부하지만 모든
+형식을 완전히 탐지할 수는 없으므로 질문과 이력에 민감정보를 입력하지 마세요.
+
+```json
+{
+  "question": "연금저축과 IRP의 합산 세액공제 한도는 얼마인가요?",
+  "history": [
+    {
+      "role": "user",
+      "content": "연금저축에 대해 알려주세요."
+    },
+    {
+      "role": "assistant",
+      "content": "어떤 점이 궁금한가요?"
+    }
+  ]
+}
+```
+
+응답의 `[문서 N]`은 `sources`에서 `citation_number=N`인 항목과 대응합니다.
+`sources`는 검색 Context의 출처 메타데이터만 반환하며 원문 청크나 프롬프트는
+노출하지 않습니다. 관련 근거가 부족하면 오류 대신 `200 OK`,
+`grounded=false`, 빈 `sources`를 반환하며 OpenAI 답변 생성을 건너뜁니다.
+
+```json
+{
+  "answer": "연금계좌 세액공제 대상 납입액은 합산 한도를 적용합니다. [문서 1]",
+  "grounded": true,
+  "needs_source_verification": true,
+  "sources": [
+    {
+      "citation_number": 1,
+      "document_id": "faq_01",
+      "title": "연금계좌 세액공제 한도",
+      "category": "납입 및 공제한도",
+      "source_title": null,
+      "source_url": null,
+      "effective_date": null,
+      "last_verified": null,
+      "provenance_verified": false,
+      "relevance_score": 0.86
+    }
+  ],
+  "model": "gpt-4o-mini",
+  "disclaimer": "이 답변은 지식베이스와 입력한 조건을 바탕으로 한 참고용 안내입니다. 실제 세액공제 및 환급액은 결정세액, 다른 공제 항목과 신고 결과에 따라 달라질 수 있습니다."
+}
+```
+
+`grounded=true`는 답변 생성에 검색된 Context를 사용했다는 뜻이며 공식 출처
+검증 완료를 뜻하지 않습니다. `needs_source_verification=true`이면 현재 초안
+지식베이스의 출처와 기준일을 공식 1차 자료로 다시 확인해야 합니다.
+
+입력 오류는 `422`, 분당·일일 호출 한도 초과는 `429`와 `Retry-After`,
+설정·지식베이스·외부 서비스 장애는 내부 정보를 숨긴 `503`으로 응답합니다.
+기본 한도는 직접 연결된 클라이언트 IP별 분당 5회·UTC 기준 일일 100회입니다.
+유효한 요청은 이후 서비스 처리에서 실패하더라도 호출 한도에 포함됩니다.
+현재 호출 제한은 단일 프로세스 메모리 기반이므로 여러 서버나 워커로 공개 배포할
+때는 인증 식별자와 공유 저장소 기반 제한으로 교체해야 합니다.
+
+### 5. 테스트 실행
 
 ```powershell
 pytest
@@ -278,15 +366,38 @@ pension-tax-assistant/
 ├── requirements.txt
 ├── app/
 │   ├── main.py
+│   ├── api/
+│   │   └── v1/
+│   │       ├── chat.py
+│   │       └── diagnose.py
+│   ├── core/
+│   │   ├── config.py
+│   │   ├── prompts.py
+│   │   ├── rate_limit.py
+│   │   └── vector_db.py
 │   ├── data/
 │   │   └── tax_faq.json
+│   ├── models/
+│   │   ├── chat.py
+│   │   └── rag.py
 │   └── services/
+│       ├── knowledge_base.py
+│       ├── rag_service.py
 │       └── tax_credit_service.py
+├── scripts/
+│   └── index_tax_faq.py
+├── frontend/
+│   └── src/
 └── tests/
+    ├── test_chat_api.py
+    ├── test_config.py
+    ├── test_knowledge_base.py
+    ├── test_rag_service.py
+    ├── test_rate_limit.py
     └── test_tax_credit_service.py
 ```
 
-기능 개발과 함께 API 라우터, 계산 서비스, RAG 서비스, 데이터 모델 및 프론트엔드 디렉터리를 단계적으로 추가할 예정입니다.
+완성된 진단·리포트·챗봇 UI와 운영용 영속 저장소는 아직 구현 전입니다.
 
 ## 목표 프로젝트 구조
 
@@ -302,33 +413,34 @@ pension-tax-assistant/
 │
 ├── app/                        # Backend (FastAPI)
 │   ├── main.py                 # FastAPI 실행, CORS 및 라우터 등록
-│   ├── config.py               # 환경변수 및 앱 설정
-│   │
 │   ├── api/
 │   │   └── v1/
-│   │       ├── diagnose.py     # POST /api/v1/diagnose
-│   │       └── chat.py         # POST /api/v1/chat
+│   │       ├── diagnose.py     # POST /api/v1/tax/diagnose
+│   │       └── chat.py         # POST /api/v1/chat/query
 │   │
 │   ├── services/
 │   │   ├── tax_credit_service.py  # 연금계좌 진단 및 계산
 │   │   └── rag_service.py      # 검색 및 LLM 답변 생성
 │   │
 │   ├── core/
+│   │   ├── config.py           # 환경변수 및 앱 설정
 │   │   ├── db.py               # SQLite 연결
+│   │   ├── rate_limit.py       # 챗봇 호출 제한
 │   │   ├── vector_db.py        # Vector DB 초기화
 │   │   └── prompts.py          # 챗봇 프롬프트 및 답변 정책
 │   │
 │   ├── models/
-│   │   ├── db_models.py        # 진단·대화 데이터 모델
-│   │   └── schemas.py          # API 요청·응답 스키마
+│   │   ├── chat.py             # 챗봇 요청·응답 스키마
+│   │   ├── rag.py              # RAG 답변·출처 스키마
+│   │   └── db_models.py        # 진단·대화 데이터 모델
 │   │
 │   └── data/
 │       └── tax_faq.json        # 공식 자료 기반 연말정산 지식베이스
 │
 └── frontend/
     ├── src/
+    │   ├── app/                # Next.js App Router 페이지
     │   ├── components/         # 버튼, 슬라이더, 카드, 대화창
-    │   ├── pages/              # 진단, 리포트, 챗봇 페이지
     │   └── services/           # 백엔드 API 통신
     └── package.json
 ```
@@ -358,12 +470,13 @@ pension-tax-assistant/
 - [x] 연금저축·IRP·ISA FAQ 20개 초안 추가 (#2 코드 반영)
 - [x] 연금계좌 세액공제 계산 서비스 구현 (#3)
 - [x] 계산 서비스 단위 테스트 16개 작성 (#3)
+- [x] ChromaDB 및 RAG 파이프라인 구축 (#4)
+- [x] Next.js/React 기본 UI 구현 (#5 코드 반영, GitHub 이슈는 Open)
+- [x] 진단 요청·응답 스키마와 진단 API 구현 (#12, `main` 반영)
+- [x] RAG 챗봇 질문 답변 API 구현 (#13, `main` 반영)
+- [x] 챗봇 API 입력·오류·출처 검증과 호출 제한 보강 (현재 브랜치)
 - [ ] FAQ 공식 출처·기준일·예외 조건 검증
-- [ ] 진단 요청·응답 스키마 정의
-- [ ] 8가지 사용자 유형과 계산 서비스를 연결하는 진단 API 작성
-- [ ] ChromaDB 및 RAG 파이프라인 구축 (#4)
 - [ ] 사용자 상태 기반 추천 질문 생성
-- [ ] Next.js/React 기본 UI 구현 (#5)
 - [ ] 진단·리포트·챗봇 UI 구현 (#5)
 - [ ] 통합 테스트 및 최종 시연
 
