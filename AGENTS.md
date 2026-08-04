@@ -112,4 +112,4 @@ API 변경 시에는 `/`, `/api/v1/health`, `/docs`와 변경한 엔드포인트
 
 ## 현재 기준
 
-현재 `main`에는 FastAPI 앱, CORS, 루트·헬스체크 API와 `app/data/tax_faq.json`이 있습니다. 진단 API, ChromaDB 검색, LLM 연동, 프론트엔드는 아직 구현 전입니다. 작업 전에는 반드시 최신 파일과 GitHub 상태를 다시 확인합니다.
+현재 `main`에는 FastAPI 앱, CORS, 루트·헬스체크 API, `app/data/tax_faq.json`, 연금계좌 세액공제 계산 서비스와 단위 테스트가 있습니다. 진단 API, ChromaDB 검색, LLM 연동, 프론트엔드는 아직 구현 전입니다. 작업 전에는 반드시 최신 파일과 GitHub 상태를 다시 확인합니다.

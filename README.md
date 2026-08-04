@@ -146,13 +146,14 @@ flowchart LR
 
 ## 구현 현황
 
-> 기준: 2026-08-04, `main` 커밋 `447a779`
+> 기준: 2026-08-04, `main` 커밋 `e4998c3`
 
 | 영역 | 상태 |
 | --- | --- |
 | FastAPI 애플리케이션, CORS 및 상태 확인 API | ✅ 구현 |
 | 연금저축·IRP·ISA 가이드 및 FAQ 20개 | ✅ 데이터 추가 |
-| 8가지 유형별 진단·계산 API | 🚧 개발 예정 |
+| 연금계좌 세액공제 계산 서비스 및 단위 테스트 | ✅ 구현 |
+| 진단 요청·응답 스키마 및 API | 🚧 개발 예정 |
 | RAG 검색 및 AI 답변 API | 🚧 개발 예정 |
 | 진단·리포트·챗봇 프론트엔드 | 🚧 개발 예정 |
 | ChromaDB 임베딩 및 검색 파이프라인 | 🚧 개발 예정 |
@@ -161,7 +162,9 @@ flowchart LR
 
 - `app/main.py`: FastAPI 앱, React 개발 서버용 CORS, `/`, `/api/v1/health` 상태 확인 API
 - `app/data/tax_faq.json`: 연금저축·IRP 가이드와 ISA를 포함한 FAQ 20개
-- `requirements.txt`: FastAPI, Uvicorn, python-dotenv 기본 의존성
+- `app/services/tax_credit_service.py`: 총급여 5,500만 원 경계, 연금저축 600만 원·합산 900만 원 한도, 예상 세액공제액과 추가 납입 권장액 계산
+- `tests/test_tax_credit_service.py`: 경계값, 한도, 입력 검증을 포함한 단위 테스트 16개
+- `requirements.txt`: FastAPI, Uvicorn, python-dotenv, pytest 의존성
 
 FAQ 데이터는 RAG 입력용 초안입니다. 실제 상담 답변에 사용하기 전 각 항목의 공식 출처 URL, 적용 기준일, 예외 조건을 검증하고 보강해야 합니다.
 
@@ -175,18 +178,21 @@ FAQ 데이터는 RAG 입력용 초안입니다. 실제 상담 답변에 사용�
 | --- | --- | --- | --- | --- |
 | [#1](https://github.com/sijeong0927/pension-tax-assistant/issues/1) | FastAPI 기본 서버 및 CORS | `@sijeong0927` | Closed | `main` 반영 |
 | [#2](https://github.com/sijeong0927/pension-tax-assistant/issues/2) | 국세청 절세 가이드 및 FAQ 수집 | `@parkhanbyeol0110-del` | Closed | `main` 반영 |
-| [#3](https://github.com/sijeong0927/pension-tax-assistant/issues/3) | 소득·계좌 기준 진단 로직 | `@leeyoungeun942` | Open | 미반영 |
-| [#4](https://github.com/sijeong0927/pension-tax-assistant/issues/4) | ChromaDB 및 RAG 기초 엔진 | `@kanghongsin` | Open | 미반영 |
+| [#3](https://github.com/sijeong0927/pension-tax-assistant/issues/3) | 소득·계좌 기준 진단 로직 | `@leeyoungeun942` | Closed | `main` 반영 |
+| [#4](https://github.com/sijeong0927/pension-tax-assistant/issues/4) | ChromaDB 및 RAG 기초 엔진 | `@kanghongsin` | Open | Draft PR #10, `main` 미반영 |
 | [#5](https://github.com/sijeong0927/pension-tax-assistant/issues/5) | Next.js/React 초기 구성 | 미지정 | Open | 미반영 |
 
-### Pull Requests
+### 주요 기능 Pull Requests
 
 | PR | 작업 | GitHub 상태 | `main` 반영 |
 | --- | --- | --- | --- |
 | [#6](https://github.com/sijeong0927/pension-tax-assistant/pull/6) | 연금저축·IRP·ISA FAQ 데이터 추가 | Closed, 미병합 표시 | 커밋 `447a779`로 반영 |
 | [#7](https://github.com/sijeong0927/pension-tax-assistant/pull/7) | FastAPI 기본 서버 및 CORS 설정 | Closed, 미병합 표시 | 커밋 `48e4d27`로 반영 |
+| [#8](https://github.com/sijeong0927/pension-tax-assistant/pull/8) | 연금계좌 세액공제 진단 로직 구현 | Closed, 미병합 표시 | 커밋 `bbacacf`로 반영 |
+| [#9](https://github.com/sijeong0927/pension-tax-assistant/pull/9) | 진단 로직 리뷰 반영 및 검증 | Merged | 커밋 `e4998c3`로 반영 |
+| [#10](https://github.com/sijeong0927/pension-tax-assistant/pull/10) | ChromaDB RAG 챗봇 기초 엔진 | Draft, Open | 미반영 |
 
-PR #6·#7은 GitHub에서 병합되지 않은 PR로 표시되지만 변경 내용은 `main`에 별도 병합 커밋으로 반영됐습니다. 더 이상 사용하지 않는 원격 작업 브랜치는 확인 후 정리해야 합니다.
+PR #6·#7·#8은 GitHub에서 병합되지 않은 PR로 표시되지만 변경 내용은 `main`에 별도 병합 커밋으로 반영됐습니다. 더 이상 사용하지 않는 원격 작업 브랜치는 확인 후 정리해야 합니다.
 
 ## 기술 구성
 
@@ -252,6 +258,12 @@ uvicorn app.main:app --reload
 }
 ```
 
+### 4. 테스트 실행
+
+```powershell
+pytest
+```
+
 ## 현재 프로젝트 구조
 
 ```text
@@ -261,10 +273,14 @@ pension-tax-assistant/
 ├── AGENTS.md
 ├── README.md
 ├── requirements.txt
-└── app/
-    ├── main.py
-    └── data/
-        └── tax_faq.json
+├── app/
+│   ├── main.py
+│   ├── data/
+│   │   └── tax_faq.json
+│   └── services/
+│       └── tax_credit_service.py
+└── tests/
+    └── test_tax_credit_service.py
 ```
 
 기능 개발과 함께 API 라우터, 계산 서비스, RAG 서비스, 데이터 모델 및 프론트엔드 디렉터리를 단계적으로 추가할 예정입니다.
@@ -291,7 +307,7 @@ pension-tax-assistant/
 │   │       └── chat.py         # POST /api/v1/chat
 │   │
 │   ├── services/
-│   │   ├── matrix_service.py   # 유형별 진단 및 계산
+│   │   ├── tax_credit_service.py  # 연금계좌 진단 및 계산
 │   │   └── rag_service.py      # 검색 및 LLM 답변 생성
 │   │
 │   ├── core/
@@ -337,10 +353,11 @@ pension-tax-assistant/
 - [x] 프로젝트 저장소 및 FastAPI 기본 환경 구성 (#1 코드 반영)
 - [x] CORS 및 상태 확인 API 구현 (#1 코드 반영)
 - [x] 연금저축·IRP·ISA FAQ 20개 초안 추가 (#2 코드 반영)
+- [x] 연금계좌 세액공제 계산 서비스 구현 (#3)
+- [x] 계산 서비스 단위 테스트 16개 작성 (#3)
 - [ ] FAQ 공식 출처·기준일·예외 조건 검증
 - [ ] 진단 요청·응답 스키마 정의
-- [ ] 8가지 진단 Matrix 및 계산 엔진 구현 (#3)
-- [ ] 진단 API와 테스트 코드 작성 (#3)
+- [ ] 8가지 사용자 유형과 계산 서비스를 연결하는 진단 API 작성
 - [ ] ChromaDB 및 RAG 파이프라인 구축 (#4)
 - [ ] 사용자 상태 기반 추천 질문 생성
 - [ ] Next.js/React 기본 UI 구현 (#5)
