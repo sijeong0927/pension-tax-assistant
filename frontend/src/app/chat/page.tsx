@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import Link from 'next/link';
-import { fetchChatHistory, sendQuery, type ChatMessage } from '@/lib/api';
+import { fetchChatHistory, sendQuery, fetchSessions, type ChatMessage, type SessionMeta } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Source {
@@ -25,7 +25,6 @@ interface Message {
   isTyping?: boolean;
 }
 
-
 const QUICK_ACTIONS = [
   '연금저축 한도 문의',
   'IRP 차이점',
@@ -40,16 +39,7 @@ const WELCOME_MESSAGE: Message = {
   text: '안녕하세요! 절세택시의 AI 기사입니다 🚕\n\n고객님의 연금 및 ISA 계좌 현황을 바탕으로 최적의 절세 경로를 안내해 드릴게요. 무엇이든 물어보세요!',
 };
 
-
 const SESSION_STORAGE_KEY = 'taxi_chat_session_id';
-const SESSION_LIST_KEY = 'taxi_chat_session_list';
-
-/** localStorage에 저장되는 세션 메타데이터 */
-interface SessionMeta {
-  sessionId: string;
-  createdAt: number;      // Date.now()
-  preview: string;        // 첫 사용자 질문 미리보기
-}
 
 // ─── Component helpers ────────────────────────────────────────────────────────
 function createSessionId(): string {
@@ -65,28 +55,6 @@ function getStoredSessionId() {
   return created;
 }
 
-/** 저장된 세션 목록을 가져옵니다 */
-function loadSessionList(): SessionMeta[] {
-  try {
-    const raw = window.localStorage.getItem(SESSION_LIST_KEY);
-    return raw ? (JSON.parse(raw) as SessionMeta[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-/** 현재 세션을 목록에 추가(or 갱신)합니다 */
-function archiveSession(sessionId: string, preview: string) {
-  const list = loadSessionList();
-  const exists = list.find((s) => s.sessionId === sessionId);
-  if (exists) {
-    exists.preview = preview || exists.preview;
-  } else {
-    list.unshift({ sessionId, createdAt: Date.now(), preview });
-  }
-  // 최대 50개 세션만 보관
-  window.localStorage.setItem(SESSION_LIST_KEY, JSON.stringify(list.slice(0, 50)));
-}
 
 function historyToMessages(history: ChatMessage[]): Message[] {
   return history.map((item, idx) => ({
@@ -242,7 +210,7 @@ export default function ChatPage() {
     const activeSessionId = getStoredSessionId();
     setSessionId(activeSessionId);
     // 저장된 세션 목록도 로드
-    setSessionList(loadSessionList());
+    fetchSessions().then(setSessionList);
   }, []);
 
   // Auto-scroll to bottom
@@ -281,9 +249,8 @@ export default function ChatPage() {
     }
     setLoading(true);
 
-    // 첫 메시지 전송 시 세션을 localStorage에 아카이브
-    archiveSession(activeSessionId, trimmed);
-    setSessionList(loadSessionList());
+    // 첫 메시지 전송 시 세션 목록 갱신 (서버에서 가져옴)
+    fetchSessions().then(setSessionList);
 
     try {
       // api.ts의 sendQuery 사용 (session_id + question 전송, DB 저장은 백엔드에서 처리)
@@ -319,12 +286,6 @@ export default function ChatPage() {
 
   // 새 상담: 현재 세션을 아카이브한 후 새 세션으로 전환
   const handleReset = useCallback(() => {
-    // 현재 세션에 대화가 있으면 저장
-    const firstUserMsg = messages.find((m) => m.role === 'user');
-    if (sessionId && firstUserMsg) {
-      archiveSession(sessionId, firstUserMsg.text.slice(0, 60));
-    }
-
     const nextSessionId = createSessionId(); // "session_${Date.now()}"
     window.localStorage.setItem(SESSION_STORAGE_KEY, nextSessionId);
     setSessionId(nextSessionId);             // useEffect가 자동으로 히스토리 재조회
@@ -333,8 +294,8 @@ export default function ChatPage() {
     setSidebarView('chat');
     setSidebarOpen(false);
     // 목록 갱신
-    setSessionList(loadSessionList());
-  }, [sessionId, messages]);
+    fetchSessions().then(setSessionList);
+  }, []);
 
   return (
     <div
@@ -558,18 +519,18 @@ export default function ChatPage() {
               ) : (
                 <div className="space-y-3">
                   {sessionList.map((sess) => {
-                    const isCurrent = sess.sessionId === sessionId;
-                    const date = new Date(sess.createdAt);
+                    const isCurrent = sess.session_id === sessionId;
+                    const date = new Date(sess.created_at);
                     const dateStr = date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
                     const timeStr = date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
                     return (
                       <button
-                        key={sess.sessionId}
+                        key={sess.session_id}
                         onClick={async () => {
                           // 해당 세션의 메시지를 백엔드에서 불러와 채팅 뷰로 전환
-                          window.localStorage.setItem(SESSION_STORAGE_KEY, sess.sessionId);
-                          setSessionId(sess.sessionId);
+                          window.localStorage.setItem(SESSION_STORAGE_KEY, sess.session_id);
+                          setSessionId(sess.session_id);
                           setSidebarView('chat');
                         }}
                         className="w-full text-left p-4 rounded-xl border transition-all"
@@ -608,7 +569,7 @@ export default function ChatPage() {
                     );
                   })}
                   <p className="text-center text-xs mt-4" style={{ color: 'var(--color-outline)' }}>
-                    기록은 이 기기의 브라우저에 최대 50건 보관됩니다.
+                    기록은 서버(SQLite DB)에 안전하게 보관됩니다.
                   </p>
                 </div>
               )}

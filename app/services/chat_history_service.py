@@ -48,3 +48,38 @@ class ChatHistoryService:
                  .order_by(ChatHistory.created_at.asc())\
                  .limit(limit)\
                  .all()
+
+    @staticmethod
+    def get_sessions(db: Session, limit: int = 50) -> List[dict]:
+        """
+        저장된 세션 목록 조회 (가장 최근 메시지 기준 내림차순 정렬)
+        세션별로 가장 첫 번째 사용자 메시지를 미리보기로 사용합니다.
+        (PII는 저장 시 이미 마스킹되어 있습니다)
+        """
+        from sqlalchemy import func
+        
+        # 1. 세션별 최신 메시지 시간과 메시지 갯수 조회
+        session_stats = db.query(
+            ChatHistory.session_id,
+            func.count(ChatHistory.id).label('total_count'),
+            func.max(ChatHistory.created_at).label('last_activity')
+        ).group_by(ChatHistory.session_id).order_by(func.max(ChatHistory.created_at).desc()).limit(limit).all()
+
+        sessions = []
+        for stat in session_stats:
+            # 2. 각 세션의 첫 번째 사용자 메시지 조회
+            first_user_msg = db.query(ChatHistory)\
+                .filter(ChatHistory.session_id == stat.session_id, ChatHistory.role == 'user')\
+                .order_by(ChatHistory.created_at.asc())\
+                .first()
+            
+            preview = first_user_msg.message[:60] if first_user_msg else "새 상담"
+
+            sessions.append({
+                "session_id": stat.session_id,
+                "preview": preview,
+                "created_at": int(stat.last_activity.timestamp() * 1000) if stat.last_activity else 0,
+                "total_count": stat.total_count
+            })
+            
+        return sessions

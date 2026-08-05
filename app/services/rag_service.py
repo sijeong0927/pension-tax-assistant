@@ -12,6 +12,7 @@ from app.core.prompts import (
 )
 from app.core.vector_db import get_vector_collection
 from app.models.rag import RAGAnswer, RAGSource
+from app.models.chat_history import ChatHistory
 from app.services.hybrid_search import (
     HybridSearchError,
     hybrid_search,
@@ -254,7 +255,7 @@ class RAGService:
             )
         return retrieved
 
-    def answer_question(self, question: str) -> RAGAnswer:
+    def answer_question(self, question: str, chat_history: list[ChatHistory] | None = None) -> RAGAnswer:
         retrieved = self.retrieve(question)
         if not retrieved:
             return RAGAnswer(
@@ -267,10 +268,20 @@ class RAGService:
             )
 
         context = self._build_context(retrieved)
+        
+        history_text = ""
+        if chat_history:
+            history_lines = []
+            for msg in chat_history:
+                role_label = "사용자" if msg.role == "user" else "AI"
+                history_lines.append(f"[{role_label}]: {msg.message}")
+            history_text = "\n최근 대화 기록:\n" + "\n".join(history_lines) + "\n\n"
+
         user_prompt = (
             f"사용자 질문:\n{question.strip()}\n\n"
+            f"{history_text}"
             f"검색된 근거 문서:\n{context}\n\n"
-            "위 근거만 사용해 한국어로 답하세요."
+            "위 근거만 사용해 한국어로 답하세요. (이전 대화 맥락이 있다면 이를 참고해 자연스럽게 답변하세요)"
         )
         try:
             response = self._get_openai_client().responses.create(
