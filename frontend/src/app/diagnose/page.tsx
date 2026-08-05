@@ -163,6 +163,8 @@ function DiagnoseHeader({
 }
 
 // ── Step 1: 총급여 선택 ────────────────────────────────────────────────────────
+
+
 function Step1({
   animClass,
   onSelect,
@@ -537,6 +539,44 @@ function Step3({
   const [irp, setIrp] = useState<number>(result.irp_paid);
   const [sim, setSim] = useState<DiagnosisResult>(result);
   const [simError, setSimError] = useState<string | null>(null);
+  
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const SESSION_STORAGE_KEY = 'taxi_chat_session_id';
+      let sessionId = window.localStorage.getItem(SESSION_STORAGE_KEY);
+      if (!sessionId) {
+        sessionId = `session_${Date.now()}`;
+        window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+      }
+      
+      const { saveTaxSavings } = await import('@/lib/api');
+      const success = await saveTaxSavings({
+        session_id: sessionId,
+        income_range: sim.income_range, // Save the latest simulated result
+        pension_savings_paid: sim.pension_savings_paid,
+        irp_paid: sim.irp_paid,
+        deductible_pension_savings: sim.deductible_pension_savings,
+        deductible_irp: sim.deductible_irp,
+        deductible_amount: sim.deductible_amount,
+        gross_tax_credit: sim.gross_tax_credit,
+        estimated_refund: sim.estimated_refund
+      });
+      if (success) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        alert('저장에 실패했습니다.');
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const isNoBenefit = sim.income_range === 'no_benefit';
   const isHighRate = sim.deduction_rate > 0.14;
@@ -796,10 +836,26 @@ function Step3({
         </p>
 
         {/* CTA buttons */}
+        <button
+          onClick={handleSave}
+          disabled={isSaving || saveSuccess}
+          className="cta-btn flex justify-center mb-3"
+          style={{
+            background: saveSuccess ? 'var(--color-secondary)' : 'var(--color-primary)',
+            color: 'white',
+            boxShadow: '0 4px 12px rgba(53,37,205,0.2)',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+            {saveSuccess ? 'check_circle' : 'save'}
+          </span>
+          {saveSuccess ? '저장 완료!' : isSaving ? '저장 중...' : '결과 저장하기'}
+        </button>
+
         <Link
           href="/chat"
-          className="cta-btn"
-          style={{ textDecoration: 'none', justifyContent: 'center' }}
+          className="cta-btn mb-3"
+          style={{ textDecoration: 'none', justifyContent: 'center', background: 'var(--color-surface)', color: 'var(--color-on-surface)', border: '1px solid rgba(199,196,216,0.5)' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>smart_toy</span>
           AI 기사님과 세부 상담하기

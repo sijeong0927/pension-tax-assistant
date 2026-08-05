@@ -255,6 +255,97 @@ class RAGService:
             )
         return retrieved
 
+    def answer_question_stream(self, question: str, chat_history: list[ChatHistory] | None = None):
+        import json
+        retrieved = self.retrieve(question)
+        if not retrieved:
+            yield f"event: sources\ndata: []\n\n"
+            yield f"event: message\ndata: {json.dumps({'content': NO_RELEVANT_CONTEXT_MESSAGE}, ensure_ascii=False)}\n\n"
+            return
+
+        context = self._build_context(retrieved)
+        
+        history_text = ""
+        if chat_history:
+            history_lines = []
+            for msg in chat_history:
+                role_label = "사용자" if msg.role == "user" else "AI"
+                history_lines.append(f"[{role_label}]: {msg.message}")
+            history_text = "\n최근 대화 기록:\n" + "\n".join(history_lines) + "\n\n"
+
+        user_prompt = (
+            f"사용자 질문:\n{question.strip()}\n\n"
+            f"{history_text}"
+            f"검색된 근거 문서:\n{context}\n\n"
+            "위 근거만 사용해 한국어로 답하세요. (이전 대화 맥락이 있다면 이를 참고해 자연스럽게 답변하세요)"
+        )
+        
+        sources = [document.to_source() for document in retrieved]
+        # yield sources first
+        sources_dict = []
+        for s in sources:
+            sources_dict.append({
+                "document_id": s.document_id,
+                "title": s.title,
+                "category": s.category,
+                "source_title": s.source_title,
+                "source_url": s.source_url,
+                "effective_date": s.effective_date,
+                "last_verified": s.last_verified,
+                "provenance_verified": s.provenance_verified,
+                "relevance_score": s.relevance_score
+            })
+        yield f"event: sources\ndata: {json.dumps(sources_dict, ensure_ascii=False)}\n\n"
+
+        full_answer = ""
+        try:
+            client = self._get_openai_client()
+            # Use standard chat completions API for streaming
+            response_stream = client.chat.completions.create(
+                model=self.settings.openai_chat_model,
+                messages=[
+                    {"role": "system", "content": RAG_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt}
+                ],
+                stream=True
+            )
+            
+            for chunk in response_stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_answer += content
+                    yield f"event: message\ndata: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+            
+            # Quick replies generation
+            qr_prompt = (
+                "다음 사용자의 질문과 AI의 답변을 바탕으로, 사용자가 이어서 물어볼 법한 연관 질문 3가지를 생성해 주세요.\n"
+                "반드시 3개의 문자열을 담은 JSON 배열 형태로만 출력하세요.\n\n"
+                f"[질문]: {question}\n[답변]: {full_answer}"
+            )
+            qr_response = client.chat.completions.create(
+                model=self.settings.openai_chat_model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that only outputs a JSON array of strings."},
+                    {"role": "user", "content": qr_prompt}
+                ]
+            )
+            qr_text = qr_response.choices[0].message.content.strip()
+            if qr_text.startswith("```json"):
+                qr_text = qr_text[7:]
+            if qr_text.endswith("```"):
+                qr_text = qr_text[:-3]
+            qr_text = qr_text.strip()
+            
+            # Validate JSON
+            try:
+                json.loads(qr_text)
+                yield f"event: quick_replies\ndata: {qr_text}\n\n"
+            except:
+                yield f"event: quick_replies\ndata: []\n\n"
+                
+        except Exception as exc:
+            yield f"event: error\ndata: {json.dumps({'error': str(exc)}, ensure_ascii=False)}\n\n"
+
     def answer_question(self, question: str, chat_history: list[ChatHistory] | None = None) -> RAGAnswer:
         retrieved = self.retrieve(question)
         if not retrieved:
