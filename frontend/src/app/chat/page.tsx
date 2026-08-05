@@ -42,6 +42,14 @@ const WELCOME_MESSAGE: Message = {
 
 
 const SESSION_STORAGE_KEY = 'taxi_chat_session_id';
+const SESSION_LIST_KEY = 'taxi_chat_session_list';
+
+/** localStorage에 저장되는 세션 메타데이터 */
+interface SessionMeta {
+  sessionId: string;
+  createdAt: number;      // Date.now()
+  preview: string;        // 첫 사용자 질문 미리보기
+}
 
 // ─── Component helpers ────────────────────────────────────────────────────────
 function createSessionId(): string {
@@ -55,6 +63,29 @@ function getStoredSessionId() {
   const created = createSessionId();
   window.localStorage.setItem(SESSION_STORAGE_KEY, created);
   return created;
+}
+
+/** 저장된 세션 목록을 가져옵니다 */
+function loadSessionList(): SessionMeta[] {
+  try {
+    const raw = window.localStorage.getItem(SESSION_LIST_KEY);
+    return raw ? (JSON.parse(raw) as SessionMeta[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 현재 세션을 목록에 추가(or 갱신)합니다 */
+function archiveSession(sessionId: string, preview: string) {
+  const list = loadSessionList();
+  const exists = list.find((s) => s.sessionId === sessionId);
+  if (exists) {
+    exists.preview = preview || exists.preview;
+  } else {
+    list.unshift({ sessionId, createdAt: Date.now(), preview });
+  }
+  // 최대 50개 세션만 보관
+  window.localStorage.setItem(SESSION_LIST_KEY, JSON.stringify(list.slice(0, 50)));
 }
 
 function historyToMessages(history: ChatMessage[]): Message[] {
@@ -188,6 +219,8 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // 'chat' | 'history' | 'savings'
   const [sidebarView, setSidebarView] = useState<'chat' | 'history' | 'savings'>('chat');
+  // localStorage에 축적된 과거 세션 목록
+  const [sessionList, setSessionList] = useState<SessionMeta[]>([]);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -218,6 +251,8 @@ export default function ChatPage() {
   useEffect(() => {
     const activeSessionId = getStoredSessionId();
     setSessionId(activeSessionId);
+    // 저장된 세션 목록도 로드
+    setSessionList(loadSessionList());
   }, []);
 
   // Auto-scroll to bottom
@@ -256,6 +291,10 @@ export default function ChatPage() {
     }
     setLoading(true);
 
+    // 첫 메시지 전송 시 세션을 localStorage에 아카이브
+    archiveSession(activeSessionId, trimmed);
+    setSessionList(loadSessionList());
+
     try {
       // api.ts의 sendQuery 사용 (session_id + question 전송, DB 저장은 백엔드에서 처리)
       const json = await sendQuery(activeSessionId, trimmed);
@@ -288,8 +327,14 @@ export default function ChatPage() {
     }
   };
 
-  // 새 상담: session_${Date.now()} 방식으로 새 세션 생성 (Issue #14)
+  // 새 상담: 현재 세션을 아카이브한 후 새 세션으로 전환
   const handleReset = useCallback(() => {
+    // 현재 세션에 대화가 있으면 저장
+    const firstUserMsg = messages.find((m) => m.role === 'user');
+    if (sessionId && firstUserMsg) {
+      archiveSession(sessionId, firstUserMsg.text.slice(0, 60));
+    }
+
     const nextSessionId = createSessionId(); // "session_${Date.now()}"
     window.localStorage.setItem(SESSION_STORAGE_KEY, nextSessionId);
     setSessionId(nextSessionId);             // useEffect가 자동으로 히스토리 재조회
@@ -297,7 +342,9 @@ export default function ChatPage() {
     setInput('');
     setSidebarView('chat');
     setSidebarOpen(false);
-  }, []);
+    // 목록 갱신
+    setSessionList(loadSessionList());
+  }, [sessionId, messages]);
 
   return (
     <div
@@ -488,22 +535,28 @@ export default function ChatPage() {
         {sidebarView === 'history' && (
           <main className="flex-1 overflow-y-auto px-4 md:px-10 py-8">
             <div className="max-w-2xl mx-auto">
-              <div className="flex items-center gap-2 mb-6">
-                <span
-                  className="material-symbols-outlined"
-                  style={{ color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}
-                >
-                  receipt_long
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}
+                  >
+                    receipt_long
+                  </span>
+                  <h2 className="font-bold text-lg" style={{ fontFamily: "'Hanken Grotesk', sans-serif", color: 'var(--color-on-surface)' }}>
+                    상담 기록
+                  </h2>
+                </div>
+                <span className="text-xs px-2 py-1 rounded-full" style={{ background: 'rgba(53,37,205,0.08)', color: 'var(--color-primary)' }}>
+                  총 {sessionList.length}건
                 </span>
-                <h2 className="font-bold text-lg" style={{ fontFamily: "'Hanken Grotesk', sans-serif", color: 'var(--color-on-surface)' }}>
-                  현재 세션 대화 기록
-                </h2>
               </div>
-              {messages.length === 0 || (messages.length === 1 && messages[0].id === 'welcome') ? (
+
+              {sessionList.length === 0 ? (
                 <div className="text-center py-16" style={{ color: 'var(--color-on-surface-variant)' }}>
                   <span className="material-symbols-outlined text-5xl block mb-3" style={{ color: 'var(--color-outline-variant)' }}>chat_bubble</span>
-                  <p className="font-medium">아직 대화 기록이 없어요.</p>
-                  <p className="text-sm mt-1">새 상담를 시작하면 이곳에 표시됩니다.</p>
+                  <p className="font-medium">아직 상담 기록이 없어요.</p>
+                  <p className="text-sm mt-1">AI 기사님과 대화를 시작하면 여기에 쌓입니다.</p>
                   <button
                     onClick={handleReset}
                     className="mt-6 px-6 py-2.5 rounded-full text-sm font-semibold transition-colors"
@@ -514,44 +567,65 @@ export default function ChatPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {messages
-                    .filter((m) => !m.isTyping && m.id !== 'welcome')
-                    .map((msg) => (
-                      <div
-                        key={msg.id}
-                        className="flex gap-3"
-                        style={{ justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
+                  {sessionList.map((sess) => {
+                    const isCurrent = sess.sessionId === sessionId;
+                    const date = new Date(sess.createdAt);
+                    const dateStr = date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+                    const timeStr = date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+                    return (
+                      <button
+                        key={sess.sessionId}
+                        onClick={async () => {
+                          // 해당 세션의 메시지를 백엔드에서 불러와 채팅 뷰로 전환
+                          window.localStorage.setItem(SESSION_STORAGE_KEY, sess.sessionId);
+                          setSessionId(sess.sessionId);
+                          setSidebarView('chat');
+                        }}
+                        className="w-full text-left p-4 rounded-xl border transition-all"
+                        style={{
+                          background: isCurrent ? 'rgba(53,37,205,0.05)' : 'white',
+                          borderColor: isCurrent ? 'var(--color-primary)' : 'rgba(199,196,216,0.3)',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                        }}
                       >
-                        {msg.role === 'ai' && (
-                          <div
-                            className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center border"
-                            style={{ background: 'white', borderColor: 'rgba(199,196,216,0.3)' }}
-                          >
-                            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="material-symbols-outlined flex-shrink-0"
+                              style={{ fontSize: '18px', color: isCurrent ? 'var(--color-primary)' : 'var(--color-outline)' }}
+                            >
+                              {isCurrent ? 'chat' : 'history'}
+                            </span>
+                            <p
+                              className="text-sm font-medium truncate"
+                              style={{ color: 'var(--color-on-surface)' }}
+                            >
+                              {sess.preview || '(미리보기 없음)'}
+                            </p>
                           </div>
-                        )}
-                        <div
-                          className="max-w-[78%] p-3 rounded-2xl text-sm leading-relaxed"
-                          style={{
-                            background: msg.role === 'user' ? 'var(--color-primary)' : 'white',
-                            color: msg.role === 'user' ? 'white' : 'var(--color-on-background)',
-                            border: msg.role === 'ai' ? '1px solid rgba(199,196,216,0.2)' : 'none',
-                            borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                            whiteSpace: 'pre-wrap',
-                          }}
-                        >
-                          {msg.text.length > 200 ? `${msg.text.slice(0, 200)}…` : msg.text}
+                          {isCurrent && (
+                            <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full font-semibold"
+                              style={{ background: 'var(--color-primary)', color: 'white' }}>
+                              현재
+                            </span>
+                          )}
                         </div>
-                      </div>
-                    ))}
-                  <p className="text-center text-xs mt-6" style={{ color: 'var(--color-outline)' }}>
-                    세션 ID: {sessionId}
+                        <p className="text-xs mt-1.5 ml-6" style={{ color: 'var(--color-outline)' }}>
+                          {dateStr} {timeStr}
+                        </p>
+                      </button>
+                    );
+                  })}
+                  <p className="text-center text-xs mt-4" style={{ color: 'var(--color-outline)' }}>
+                    기록은 이 기기의 브라우저에 최대 50건 보관됩니다.
                   </p>
                 </div>
               )}
             </div>
           </main>
         )}
+
 
         {/* ── 저장된 절세 정보 패널 ── */}
         {sidebarView === 'savings' && (
