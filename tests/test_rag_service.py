@@ -120,10 +120,34 @@ def test_answer_question_returns_sources(tmp_path: Path) -> None:
     assert "[문서 1]" in openai_client.responses.calls[0]["input"]
 
 
+def test_answer_question_keeps_chat_history_in_generation_prompt(
+    tmp_path: Path,
+) -> None:
+    openai_client = FakeOpenAI()
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=openai_client,
+        collection=FakeCollection(),
+    )
+    history = [SimpleNamespace(role="user", message="이전 질문")]
+
+    service.answer_question(
+        "현재 질문",
+        chat_history=history,  # type: ignore[arg-type]
+    )
+
+    prompt = openai_client.responses.calls[0]["input"]
+    assert "최근 대화 기록" in prompt
+    assert "이전 질문" in prompt
+
+
 def test_system_prompt_blocks_unsupported_numeric_transformations() -> None:
     assert "숫자를 임의로 보간·환산·계산하지 마세요" in RAG_SYSTEM_PROMPT
     assert "문서 간 수치가 다르면" in RAG_SYSTEM_PROMPT
     assert "계산 기준이나 단위를 확정할 수 없으면" in RAG_SYSTEM_PROMPT
+    assert "개인별 납입 가능액" in RAG_SYSTEM_PROMPT
+    assert "앱의 진단 기능" in RAG_SYSTEM_PROMPT
+    assert "한 가지 의미로 단정하지 말고" in RAG_SYSTEM_PROMPT
 
 
 def test_low_relevance_skips_answer_generation(tmp_path: Path) -> None:
