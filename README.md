@@ -154,7 +154,7 @@ flowchart LR
 | 영역 | 상태 |
 | --- | --- |
 | FastAPI 애플리케이션, CORS 및 루트 API | ✅ 구현 |
-| 연금·일반 연말정산 가이드 및 FAQ 41개 | ✅ 출처·근거 청크 메타데이터 포함 |
+| 연금·일반 연말정산 가이드 및 FAQ 59개 | ✅ 출처·근거 청크 메타데이터 포함 |
 | 연금계좌 세액공제 계산 서비스 및 단위 테스트 | ✅ 구현 |
 | `POST /api/v1/tax/diagnose` 진단 API | ✅ 구현 |
 | ChromaDB 임베딩·검색, OpenAI RAG 엔진 및 PDF 인덱서 | ✅ 구현 |
@@ -170,7 +170,7 @@ flowchart LR
 - `app/services/hybrid_search.py`: BM25·ChromaDB Vector 후보 결합과 결정론적 RRF 재정렬
 - `app/services/rag_service.py`: 하이브리드 검색, 관련성 기준 확인, OpenAI 답변 생성과 출처 반환
 - `app/core/`: 환경변수 설정, 공통 프롬프트와 ChromaDB 컬렉션 관리
-- `app/data/tax_faq.json`: 가이드 1개와 FAQ 41개, 각 문서의 출처·기준일·검증일·근거 청크 메타데이터
+- `app/data/tax_faq.json`: 가이드 1개와 FAQ 59개, 각 문서의 출처·기준일·검증일·근거 청크 메타데이터
 - `app/services/tax_credit_service.py`: 총급여 5,500만 원 경계, 연금저축 600만 원·합산 900만 원 한도, 예상 세액공제액과 추가 납입 권장액 계산
 - `scripts/index_tax_faq.py`: 지식베이스 스키마·중복·출처 메타데이터를 검증한 뒤 FAQ를 수동 인덱싱
 - `scripts/index_pdf.py`: 국세청 PDF SHA-256 검증, 청크 분할, 임베딩 요청 한도와 원자적 교체를 처리하는 PDF 인덱서
