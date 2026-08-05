@@ -1,8 +1,10 @@
 from dataclasses import asdict, is_dataclass
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+import json
 
 from app.db.session import get_db
 from app.services.chat_history_service import ChatHistoryService
@@ -86,6 +88,43 @@ def query_chat(request: ChatQueryRequest, db: Session = Depends(get_db)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"챗봇 응답 생성 중 오류 발생: {str(e)}")
+
+@router.post("/chat/query/stream")
+def query_chat_stream(request: ChatQueryRequest, db: Session = Depends(get_db)):
+    session_id = request.session_id or "default_session"
+    
+    # 1. 사용자 질문 DB 저장
+    ChatHistoryService.save_message(
+        db=db,
+        session_id=session_id,
+        role="user",
+        message=request.question
+    )
+
+    chat_history = ChatHistoryService.get_history(db, session_id, limit=6)
+    
+    def event_generator():
+        full_answer = ""
+        for event in rag_service.answer_question_stream(request.question, chat_history=chat_history):
+            if event.startswith("event: message"):
+                try:
+                    data_str = event.split("data: ")[1].strip()
+                    data = json.loads(data_str)
+                    full_answer += data.get("content", "")
+                except:
+                    pass
+            yield event
+            
+        # 3. 스트리밍 완료 후 전체 AI 답변 DB 저장
+        if full_answer:
+            ChatHistoryService.save_message(
+                db=db,
+                session_id=session_id,
+                role="assistant",
+                message=full_answer
+            )
+            
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/chat/history/{session_id}")

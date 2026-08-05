@@ -244,3 +244,4 @@ chroma_db/
 
 # Offline answer-quality evaluation reports
 /tmp/answer_quality_report*.json
+app/data/*.db
