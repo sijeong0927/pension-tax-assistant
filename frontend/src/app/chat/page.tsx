@@ -2,16 +2,18 @@
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Source {
-  question?: string;
-  answer?: string;
+  document_id?: string;
+  title?: string;
+  category?: string;
   source_title?: string;
   source_url?: string;
   effective_date?: string;
-  category?: string;
+  last_verified?: string;
+  provenance_verified?: boolean;
+  relevance_score?: number;
 }
 
 interface Message {
@@ -22,11 +24,25 @@ interface Message {
   isTyping?: boolean;
 }
 
+interface HistoryItem {
+  id: number;
+  session_id: string;
+  role: 'user' | 'assistant';
+  message: string;
+  created_at: string;
+}
+
+interface HistoryResponse {
+  success: boolean;
+  session_id: string;
+  history: HistoryItem[];
+}
+
 const QUICK_ACTIONS = [
   '연금저축 한도 문의',
   'IRP 차이점',
   '세액공제율 기준',
-  '연말정산 환급 방법',
+  '연말정산 세액공제 확인',
   '퇴직연금 전환 방법',
 ];
 
@@ -36,7 +52,35 @@ const WELCOME_MESSAGE: Message = {
   text: '안녕하세요! 절세택시의 AI 기사입니다 🚕\n\n고객님의 연금 및 ISA 계좌 현황을 바탕으로 최적의 절세 경로를 안내해 드릴게요. 무엇이든 물어보세요!',
 };
 
+
+const API_BASE_URL = 'http://localhost:8000/api/v1';
+const SESSION_STORAGE_KEY = 'taxi_chat_session_id';
+
 // ─── Component helpers ────────────────────────────────────────────────────────
+function createSessionId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `taxi-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getStoredSessionId() {
+  const stored = window.localStorage.getItem(SESSION_STORAGE_KEY);
+  if (stored) return stored;
+
+  const created = createSessionId();
+  window.localStorage.setItem(SESSION_STORAGE_KEY, created);
+  return created;
+}
+
+function historyToMessages(history: HistoryItem[]): Message[] {
+  return history.map((item) => ({
+    id: `history-${item.id}`,
+    role: item.role === 'assistant' ? 'ai' : 'user',
+    text: item.message,
+  }));
+}
+
 function formatText(text: string) {
   return text.split('\n').map((line, i) => (
     <span key={i}>
@@ -75,21 +119,119 @@ function AiAvatar() {
     </div>
   );
 }
+function relevancePercent(score?: number) {
+  if (typeof score !== 'number' || Number.isNaN(score)) return null;
+  return `${Math.round(Math.max(0, Math.min(1, score)) * 100)}%`;
+}
+
+function pageLabel(source: Source) {
+  const text = `${source.title ?? ''} ${source.document_id ?? ''}`;
+  const koreanPage = text.match(/(\d+)페이지/);
+  if (koreanPage) return `${koreanPage[1]}페이지`;
+
+  const idPage = text.match(/page[_-](\d+)/i);
+  if (idPage) return `${Number(idPage[1])}페이지`;
+
+  return null;
+}
+
+function SourceCard({ source, index }: { source: Source; index: number }) {
+  const relevance = relevancePercent(source.relevance_score);
+  const page = pageLabel(source);
+  const title = source.title || source.source_title || source.document_id || `참조 문서 ${index + 1}`;
+  const hasMetadata = Boolean(source.category || source.effective_date || source.last_verified);
+
+  return (
+    <article className="source-card">
+      <div className="source-card-topline">
+        <span className="source-chip source-chip--primary">문서 {index + 1}</span>
+        {page && <span className="source-chip">PDF {page}</span>}
+        {source.provenance_verified && <span className="source-chip">출처 검증</span>}
+        {source.provenance_verified === false && <span className="source-chip">검증 필요</span>}
+        {relevance && <span className="source-score">연관도 {relevance}</span>}
+      </div>
+
+      <p className="source-title">{title}</p>
+
+      {hasMetadata && (
+        <div className="source-meta-grid">
+          {source.category && (
+            <span>
+              <span className="source-meta-label">분류</span>
+              {source.category}
+            </span>
+          )}
+          {source.effective_date && (
+            <span>
+              <span className="source-meta-label">기준일</span>
+              {source.effective_date}
+            </span>
+          )}
+          {source.last_verified && (
+            <span>
+              <span className="source-meta-label">검증일</span>
+              {source.last_verified}
+            </span>
+          )}
+        </div>
+      )}
+
+      {(source.source_title || source.source_url) && (
+        <div className="source-link-row">
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+            verified
+          </span>
+          {source.source_url ? (
+            <a href={source.source_url} target="_blank" rel="noreferrer">
+              {source.source_title || '공식 출처 열기'}
+            </a>
+          ) : (
+            <span>{source.source_title}</span>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  useEffect(() => {
+    const loadHistory = async () => {
+      const activeSessionId = getStoredSessionId();
+      setSessionId(activeSessionId);
+      try {
+        const res = await fetch(`${API_BASE_URL}/chat/history/${encodeURIComponent(activeSessionId)}`);
+        if (!res.ok) return;
+
+        const json: HistoryResponse = await res.json();
+        if (!json.success || !Array.isArray(json.history) || json.history.length === 0) return;
+
+        setMessages(historyToMessages(json.history));
+      } catch {
+        // History API may be unavailable in older local backends; keep a fresh chat instead.
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+
+    loadHistory();
+  }, []);
+
   // Auto-scroll to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, historyLoading]);
 
   // Auto-resize textarea
   const handleTextareaInput = useCallback(() => {
@@ -103,6 +245,9 @@ export default function ChatPage() {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
 
+    const activeSessionId = sessionId ?? getStoredSessionId();
+    if (!sessionId) setSessionId(activeSessionId);
+
     const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', text: trimmed };
     const typingMsg: Message = { id: `typing-${Date.now()}`, role: 'ai', text: '', isTyping: true };
 
@@ -114,10 +259,10 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:8000/api/v1/chat/query', {
+      const res = await fetch(`${API_BASE_URL}/chat/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: trimmed }),
+        body: JSON.stringify({ question: trimmed, session_id: activeSessionId }),
       });
 
       if (!res.ok) {
@@ -144,7 +289,7 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [loading]);
+  }, [loading, sessionId]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -154,6 +299,9 @@ export default function ChatPage() {
   };
 
   const handleReset = useCallback(() => {
+    const nextSessionId = createSessionId();
+    window.localStorage.setItem(SESSION_STORAGE_KEY, nextSessionId);
+    setSessionId(nextSessionId);
     setMessages([WELCOME_MESSAGE]);
     setInput('');
   }, []);
@@ -219,7 +367,6 @@ export default function ChatPage() {
               { icon: 'add_comment', label: '새 상담', active: true, onClick: handleReset },
               { icon: 'receipt_long', label: '상담 기록', active: false },
               { icon: 'savings', label: '저장된 절세 정보', active: false },
-              { icon: 'verified_user', label: '프리미엄 지원', active: false },
             ].map(({ icon, label, active, onClick }) => (
               <button
                 key={label}
@@ -246,12 +393,6 @@ export default function ChatPage() {
             className="mt-auto pt-4 space-y-1"
             style={{ borderTop: '1px solid rgba(199,196,216,0.3)' }}
           >
-            <button
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors"
-              style={{ borderColor: 'var(--color-secondary)', color: 'var(--color-secondary)' }}
-            >
-              프로로 업그레이드
-            </button>
             {[
               { icon: 'arrow_back', label: '진단으로 돌아가기', href: '/diagnose' },
               { icon: 'home', label: '홈으로', href: '/' },
@@ -365,43 +506,23 @@ export default function ChatPage() {
                       }}
                     >
                       {msg.isTyping ? <TypingDots /> : formatText(msg.text)}
-
                       {/* Sources */}
                       {msg.sources && msg.sources.length > 0 && (
-                        <div
-                          className="mt-3 pt-3 space-y-2"
-                          style={{ borderTop: '1px solid rgba(199,196,216,0.25)' }}
-                        >
-                          <p className="text-xs font-semibold" style={{ color: 'var(--color-on-surface-variant)' }}>
-                            참조 자료
-                          </p>
-                          {msg.sources.slice(0, 3).map((src, i) => (
-                            <div
-                              key={i}
-                              className="flex items-start gap-2 text-xs p-2 rounded-lg"
-                              style={{ background: 'rgba(229,238,255,0.5)' }}
+                        <div className="source-section">
+                          <div className="source-section-header">
+                            <span
+                              className="material-symbols-outlined"
+                              style={{ fontSize: '16px', color: 'var(--color-primary)' }}
                             >
-                              <span
-                                className="material-symbols-outlined flex-shrink-0 mt-0.5"
-                                style={{ fontSize: '14px', color: 'var(--color-primary)' }}
-                              >
-                                description
-                              </span>
-                              <div className="min-w-0">
-                                {src.question && (
-                                  <p className="font-medium truncate" style={{ color: 'var(--color-on-surface)' }}>
-                                    {src.question}
-                                  </p>
-                                )}
-                                {src.source_title && (
-                                  <p style={{ color: 'var(--color-on-surface-variant)' }}>{src.source_title}</p>
-                                )}
-                                {src.effective_date && (
-                                  <p style={{ color: 'var(--color-outline)' }}>기준일: {src.effective_date}</p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                              library_books
+                            </span>
+                            <p>참조한 공식 자료</p>
+                          </div>
+                          <div className="source-card-list">
+                            {msg.sources.slice(0, 4).map((src, i) => (
+                              <SourceCard key={`${src.document_id ?? src.title ?? i}-${i}`} source={src} index={i} />
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>

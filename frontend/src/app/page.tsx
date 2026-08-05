@@ -63,7 +63,7 @@ export default function Home() {
               </div>
               <h3 className="card-title">1초 만에 절세택시 탑승하기</h3>
               <p className="card-body">
-                몇 가지 질문으로 예상 환급금을 빠르게 확인하세요.
+                몇 가지 질문으로 예상 세액 공제 효과를 빠르게 확인하세요.
               </p>
               <div className="card-cta card-cta--filled">바로 시작하기</div>
             </Link>
