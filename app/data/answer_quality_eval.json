@@ -1,31 +1,101 @@
 {
-  "version": 1,
-  "description": "정책 설명 챗봇의 근거 충실도·문맥 관련성·환각 위험·계산 범위 준수 평가셋",
+  "version": 2,
+  "description": "일반 사용자의 자연스러운 연금·ISA 질문으로 정책 설명 챗봇의 근거 충실도·문맥 관련성·환각 위험·계산 범위 준수를 확인하는 평가셋",
   "cases": [
     {
-      "id": "pension_tax_credit_policy",
-      "query": "연금저축과 IRP의 세액공제 대상 납입 한도는 어떻게 다른가요?",
+      "id": "retirement_account_basics",
+      "query": "연금저축이랑 IRP는 뭐가 달라요?",
       "expected_behavior": "policy_explanation"
     },
     {
-      "id": "isa_maturity_transfer_policy",
-      "query": "ISA 만기자금을 연금계좌로 전환할 때 확인할 조건은 무엇인가요?",
+      "id": "year_end_tax_benefit",
+      "query": "연금저축에 돈을 넣으면 연말정산에서 뭐가 좋은가요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "annual_payment_limit",
+      "query": "올해 연금저축이나 IRP에 얼마까지 넣을 수 있나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "tax_credit_carryover",
+      "query": "올해 한도보다 많이 넣은 돈은 내년에 세금 혜택을 받을 수 있나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "irp_needed_with_savings",
+      "query": "IRP도 꼭 만들어야 하나요? 연금저축만 하면 안 되나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "early_withdrawal_comparison",
+      "query": "급하게 돈이 필요하면 연금저축이랑 IRP 중에서 어느 쪽 돈을 빼기 쉬워요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "pension_start_age",
+      "query": "연금저축에 넣은 돈은 몇 살부터 받을 수 있어요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "pension_tax_on_withdrawal",
+      "query": "나중에 연금으로 받으면 세금을 또 내나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "irp_partial_withdrawal",
+      "query": "IRP에 들어간 돈을 급할 때 일부만 뺄 수 있어요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "retirement_pay_to_irp",
+      "query": "퇴직금을 IRP로 받으라는데 그냥 통장으로 받는 것과 뭐가 달라요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "isa_maturity_transfer_basics",
+      "query": "ISA 만기 돈을 연금저축으로 옮기라는 건 무슨 뜻이에요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "isa_transfer_deadline",
+      "query": "ISA가 끝난 뒤 며칠 안에 연금계좌로 옮겨야 하나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "isa_partial_transfer",
+      "query": "ISA 돈을 전부 말고 일부만 연금계좌로 옮길 수도 있나요?",
       "expected_behavior": "policy_explanation"
     },
     {
       "id": "personal_tax_credit_request",
-      "query": "총급여 5천만 원이고 연금저축에 400만 원을 냈는데 IRP에 얼마를 더 넣으면 세액공제가 얼마나 늘어나나요?",
+      "query": "연금저축에 이미 넣은 돈이 있는데, 저는 얼마를 더 넣으면 세금을 얼마나 돌려받나요?",
       "expected_behavior": "diagnosis_handoff"
+    },
+    {
+      "id": "personal_recommendation_request",
+      "query": "제 월급과 기존 납입액을 기준으로 올해 더 넣는 게 좋은지 추천해 줄 수 있나요?",
+      "expected_behavior": "diagnosis_handoff"
+    },
+    {
+      "id": "transfer_to_other_provider",
+      "query": "지금 가진 연금저축을 다른 은행이나 증권사로 옮기고 싶어요. 해지해야 하나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "freelancer_eligibility",
+      "query": "프리랜서도 연금저축에 넣으면 세금 혜택을 받을 수 있나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "midyear_resignation",
+      "query": "회사 다니다가 올해 퇴사했는데 연말정산은 어떻게 해요?",
+      "expected_behavior": "policy_explanation"
     },
     {
       "id": "ambiguous_account_transfer",
       "query": "연금계좌 전환은 어떻게 하나요?",
       "expected_behavior": "clarification"
-    },
-    {
-      "id": "midyear_retirement_policy",
-      "query": "연도 중 퇴사한 근로자는 연말정산을 언제 해야 하나요?",
-      "expected_behavior": "policy_explanation"
     },
     {
       "id": "out_of_scope_weather",
