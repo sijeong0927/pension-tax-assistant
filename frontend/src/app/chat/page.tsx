@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import Link from 'next/link';
+import { fetchChatHistory, sendQuery, type ChatMessage } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Source {
@@ -24,19 +25,6 @@ interface Message {
   isTyping?: boolean;
 }
 
-interface HistoryItem {
-  id: number;
-  session_id: string;
-  role: 'user' | 'assistant';
-  message: string;
-  created_at: string;
-}
-
-interface HistoryResponse {
-  success: boolean;
-  session_id: string;
-  history: HistoryItem[];
-}
 
 const QUICK_ACTIONS = [
   '연금저축 한도 문의',
@@ -53,15 +41,11 @@ const WELCOME_MESSAGE: Message = {
 };
 
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
 const SESSION_STORAGE_KEY = 'taxi_chat_session_id';
 
 // ─── Component helpers ────────────────────────────────────────────────────────
-function createSessionId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-  return `taxi-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+function createSessionId(): string {
+  return `session_${Date.now()}`;
 }
 
 function getStoredSessionId() {
@@ -73,9 +57,9 @@ function getStoredSessionId() {
   return created;
 }
 
-function historyToMessages(history: HistoryItem[]): Message[] {
-  return history.map((item) => ({
-    id: `history-${item.id}`,
+function historyToMessages(history: ChatMessage[]): Message[] {
+  return history.map((item, idx) => ({
+    id: item.id != null ? `history-${item.id}` : `history-idx-${idx}`,
     role: item.role === 'assistant' ? 'ai' : 'user',
     text: item.message,
   }));
@@ -206,26 +190,32 @@ export default function ChatPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // sessionId 변경 시 대화 내역 조회 (Issue #14)
   useEffect(() => {
+    if (!sessionId) return;
     const loadHistory = async () => {
-      const activeSessionId = getStoredSessionId();
-      setSessionId(activeSessionId);
+      setHistoryLoading(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/chat/history/${encodeURIComponent(activeSessionId)}`);
-        if (!res.ok) return;
-
-        const json: HistoryResponse = await res.json();
-        if (!json.success || !Array.isArray(json.history) || json.history.length === 0) return;
-
-        setMessages(historyToMessages(json.history));
+        const history = await fetchChatHistory(sessionId);
+        if (history.length === 0) {
+          setMessages([WELCOME_MESSAGE]);
+        } else {
+          setMessages(historyToMessages(history));
+        }
       } catch {
-        // History API may be unavailable in older local backends; keep a fresh chat instead.
+        // 히스토리 로드 실패 시 환영 메시지 유지
+        setMessages([WELCOME_MESSAGE]);
       } finally {
         setHistoryLoading(false);
       }
     };
-
     loadHistory();
+  }, [sessionId]);
+
+  // 컴포넌트 마운트 시 sessionId 초기화 (Issue #14: session_${Date.now()} 기반)
+  useEffect(() => {
+    const activeSessionId = getStoredSessionId();
+    setSessionId(activeSessionId);
   }, []);
 
   // Auto-scroll to bottom
@@ -241,13 +231,19 @@ export default function ChatPage() {
     el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
   }, []);
 
-  const sendMessage = useCallback(async (text: string) => {
+  /**
+   * 메시지 전송 함수 (Issue #14: api.ts의 sendQuery 사용)
+   * - 사용자 메시지를 UI에 즉시 반영
+   * - sendQuery()로 백엔드 호출 → 응답 answer를 AI 메시지로 추가
+   */
+  const handleSendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
 
     const activeSessionId = sessionId ?? getStoredSessionId();
     if (!sessionId) setSessionId(activeSessionId);
 
+    // 사용자 메시지 즉시 UI 반영
     const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', text: trimmed };
     const typingMsg: Message = { id: `typing-${Date.now()}`, role: 'ai', text: '', isTyping: true };
 
@@ -259,25 +255,14 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/chat/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: trimmed, session_id: activeSessionId }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `서버 오류 (${res.status})`);
-      }
-
-      const json = await res.json();
+      // api.ts의 sendQuery 사용 (session_id + question 전송, DB 저장은 백엔드에서 처리)
+      const json = await sendQuery(activeSessionId, trimmed);
       const aiMsg: Message = {
         id: `a-${Date.now()}`,
         role: 'ai',
         text: json.answer || '답변을 가져오지 못했습니다.',
         sources: json.sources?.length ? json.sources : undefined,
       };
-
       setMessages((prev) => prev.filter((m) => !m.isTyping).concat(aiMsg));
     } catch (e: unknown) {
       const errMsg: Message = {
@@ -291,6 +276,9 @@ export default function ChatPage() {
     }
   }, [loading, sessionId]);
 
+  // 이전 코드와의 호환성을 위한 alias
+  const sendMessage = handleSendMessage;
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -298,11 +286,12 @@ export default function ChatPage() {
     }
   };
 
+  // 새 상담: session_${Date.now()} 방식으로 새 세션 생성 (Issue #14)
   const handleReset = useCallback(() => {
-    const nextSessionId = createSessionId();
+    const nextSessionId = createSessionId(); // "session_${Date.now()}"
     window.localStorage.setItem(SESSION_STORAGE_KEY, nextSessionId);
-    setSessionId(nextSessionId);
-    setMessages([WELCOME_MESSAGE]);
+    setSessionId(nextSessionId);             // useEffect가 자동으로 히스토리 재조회
+    setMessages([]);                         // sessionId 변경 → useEffect에서 갱신됨
     setInput('');
   }, []);
 
