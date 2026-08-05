@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:ui": "tsc -p tsconfig.test.json && node .test-build/diagnoseSimulator.test.js"
   },
   "dependencies": {
     "lucide-react": "^1.28.0",
