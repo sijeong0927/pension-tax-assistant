@@ -167,7 +167,7 @@ flowchart LR
 - `app/main.py`: FastAPI 앱, CORS, 진단·챗봇 라우터 등록과 `/` 루트 API
 - `app/api/v1/diagnose.py`: 총급여와 연금저축·IRP 납입액을 받는 세액공제 진단 API
 - `app/api/v1/chat.py`: 질문을 받아 `RAGService`를 호출하고 답변과 참조 문서를 반환하는 챗봇 API
-- `app/services/hybrid_search.py`: BM25·ChromaDB Vector 후보 결합, RRF 및 선택적 Cohere 리랭킹
+- `app/services/hybrid_search.py`: BM25·ChromaDB Vector 후보 결합과 결정론적 RRF 재정렬
 - `app/services/rag_service.py`: 하이브리드 검색, 관련성 기준 확인, OpenAI 답변 생성과 출처 반환
 - `app/core/`: 환경변수 설정, 공통 프롬프트와 ChromaDB 컬렉션 관리
 - `app/data/tax_faq.json`: 가이드 1개와 FAQ 41개, 각 문서의 출처·기준일·검증일·근거 청크 메타데이터
@@ -199,7 +199,7 @@ FAQ는 엄격 모드(`--strict-provenance`)에서 출처 메타데이터 누락�
 | [#13](https://github.com/sijeong0927/pension-tax-assistant/issues/13) (프로젝트 Issue #7) | RAG 챗봇 질문 답변 API | 미지정 | Closed | PR #17, `main` 반영 |
 | [#16](https://github.com/sijeong0927/pension-tax-assistant/issues/16) (프로젝트 Issue #8) | 연금 세제 지식·FAQ 데이터 추가 | 미지정 | Open | PR #20으로 코드 반영, 이슈는 미종료 |
 | [#22](https://github.com/sijeong0927/pension-tax-assistant/issues/22) | 일반 연말정산 FAQ 지식 데이터 확장 | 미지정 | Closed | PR #25, `main` 반영 |
-| [#28](https://github.com/sijeong0927/pension-tax-assistant/issues/28) (프로젝트 Issue #11) | RAG 하이브리드 검색 및 리랭킹 | 미지정 | Open | 이 작업 브랜치에서 구현 |
+| [#28](https://github.com/sijeong0927/pension-tax-assistant/issues/28) (프로젝트 Issue #11) | RAG 하이브리드 검색 및 리랭킹 | 미지정 | Closed | PR #36, `main` 반영 |
 
 ### 주요 기능 Pull Requests
 
@@ -229,7 +229,7 @@ Issue #5와 #16은 GitHub에서 Open이지만 관련 구현은 `main`에 반영�
 | 프론트엔드 | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
 | 백엔드 | Python, FastAPI, Pydantic, Uvicorn |
 | 계산 엔진 | `Decimal` 기반 세액공제 한도·예상 금액 계산 |
-| 지식 검색 | ChromaDB Vector + BM25 → RRF → 선택적 Cohere 리랭킹 |
+| 지식 검색 | ChromaDB Vector + BM25 → 결정론적 RRF 재정렬 |
 | LLM | OpenAI Responses API, 기본 `gpt-4o-mini` |
 | 설정 관리 | python-dotenv 및 환경변수 |
 
@@ -240,7 +240,7 @@ flowchart TB
     API --> RAG["RAG 서비스<br/>근거 검색 · 답변 생성"]
     DATA["공식 세법 자료<br/>FAQ · PDF"] -->|"수동 검증 · 임베딩"| VECTOR["ChromaDB<br/>Vector 검색"]
     DATA --> BM25["BM25<br/>조문 · 수치 검색"]
-    VECTOR --> RERANK["RRF · 선택적 Cohere 리랭킹"]
+    VECTOR --> RERANK["RRF · 법령 일치 재정렬"]
     BM25 --> RERANK
     RAG <-->|"재정렬된 근거 문서"| RERANK
     RAG --> LLM["OpenAI Responses API<br/>기본 gpt-4o-mini"]
@@ -267,9 +267,8 @@ Copy-Item .env.example .env
 
 `.env`의 `OPENAI_API_KEY`에 로컬 개발용 키를 설정합니다. 실제 키는 코드, 문서,
 로그와 Git 커밋에 포함하지 않습니다. 전체 환경변수와 비용 제한 정책은
-[`docs/rag.md`](docs/rag.md)를 참고하세요. 선택적으로 `COHERE_API_KEY`를 설정하면
-하이브리드 검색 후보에 Cohere 리랭킹이 적용되며, 미설정·장애 시 로컬 RRF 순위를
-사용합니다.
+[`docs/rag.md`](docs/rag.md)를 참고하세요. 검색 후보는 로컬 RRF 순위와 법령
+일치 신호로 재정렬합니다.
 
 ### 3. RAG 지식베이스 적재
 

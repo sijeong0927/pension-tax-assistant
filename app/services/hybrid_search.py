@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-import json
 import math
 import re
 import unicodedata
-import urllib.error
-import urllib.request
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Protocol, Sequence
+from typing import Any, Mapping, Sequence
 
 
 RRF_RANK_CONSTANT = 60
 BM25_K1 = 1.5
 BM25_B = 0.75
-COHERE_RERANK_URL = "https://api.cohere.com/v2/rerank"
 
 _LEGAL_REFERENCE_PATTERN = re.compile(
     r"제\s*(\d+)\s*조(?:\s*의\s*(\d+))?",
@@ -40,10 +36,6 @@ class HybridSearchError(RuntimeError):
     """하이브리드 검색이 후보 문서를 구성하지 못했을 때 발생하는 예외."""
 
 
-class RerankerError(RuntimeError):
-    """외부 리랭킹 서비스의 요청 또는 응답이 유효하지 않을 때 발생하는 예외."""
-
-
 @dataclass(frozen=True)
 class SearchDocument:
     document_id: str
@@ -60,29 +52,6 @@ class RankedCandidate:
     legal_token_coverage: float
     relevance_score: float
     ordering_score: float
-
-
-@dataclass(frozen=True)
-class RerankResult:
-    index: int
-    relevance_score: float
-
-
-class Reranker(Protocol):
-    def rerank(
-        self,
-        query: str,
-        documents: Sequence[str],
-        *,
-        top_n: int,
-    ) -> Sequence[RerankResult]:
-        """질문과 문서의 관련성을 평가해 높은 순서로 반환한다."""
-
-
-JSONTransport = Callable[
-    [str, Mapping[str, str], Mapping[str, Any], float],
-    Mapping[str, Any],
-]
 
 
 def tokenize_for_bm25(text: str) -> tuple[str, ...]:
@@ -359,119 +328,6 @@ def _fuse_candidates(
     return candidates
 
 
-def _post_json(
-    url: str,
-    headers: Mapping[str, str],
-    payload: Mapping[str, Any],
-    timeout_seconds: float,
-) -> Mapping[str, Any]:
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=dict(headers),
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(
-            request,
-            timeout=timeout_seconds,
-        ) as response:
-            body = response.read().decode("utf-8")
-    except (OSError, urllib.error.HTTPError, urllib.error.URLError) as exc:
-        raise RerankerError("Cohere 리랭킹 요청에 실패했습니다.") from exc
-    try:
-        parsed = json.loads(body)
-    except json.JSONDecodeError as exc:
-        raise RerankerError("Cohere 리랭킹 응답이 JSON 형식이 아닙니다.") from exc
-    if not isinstance(parsed, Mapping):
-        raise RerankerError("Cohere 리랭킹 응답 형식이 올바르지 않습니다.")
-    return parsed
-
-
-class CohereReranker:
-    def __init__(
-        self,
-        *,
-        api_key: str,
-        model: str,
-        timeout_seconds: float,
-        transport: JSONTransport = _post_json,
-    ) -> None:
-        if not api_key:
-            raise ValueError("Cohere API 키가 필요합니다.")
-        self.api_key = api_key
-        self.model = model
-        self.timeout_seconds = timeout_seconds
-        self._transport = transport
-
-    def rerank(
-        self,
-        query: str,
-        documents: Sequence[str],
-        *,
-        top_n: int,
-    ) -> Sequence[RerankResult]:
-        if not documents or top_n <= 0:
-            return []
-        try:
-            response = self._transport(
-                COHERE_RERANK_URL,
-                {
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                {
-                    "model": self.model,
-                    "query": query,
-                    "documents": list(documents),
-                    "top_n": min(top_n, len(documents)),
-                },
-                self.timeout_seconds,
-            )
-        except RerankerError:
-            raise
-        except Exception as exc:
-            raise RerankerError("Cohere 리랭킹 요청에 실패했습니다.") from exc
-
-        raw_results = response.get("results")
-        if not isinstance(raw_results, list):
-            raise RerankerError("Cohere 리랭킹 결과가 누락되었습니다.")
-
-        results: list[RerankResult] = []
-        seen_indices: set[int] = set()
-        for raw_result in raw_results:
-            if not isinstance(raw_result, Mapping):
-                raise RerankerError("Cohere 리랭킹 결과 형식이 올바르지 않습니다.")
-            raw_index = raw_result.get("index")
-            raw_score = raw_result.get("relevance_score")
-            if (
-                not isinstance(raw_index, int)
-                or isinstance(raw_index, bool)
-                or raw_index < 0
-                or raw_index >= len(documents)
-                or raw_index in seen_indices
-            ):
-                raise RerankerError("Cohere 리랭킹 문서 인덱스가 올바르지 않습니다.")
-            try:
-                score = float(raw_score)
-            except (TypeError, ValueError) as exc:
-                raise RerankerError(
-                    "Cohere 리랭킹 관련성 점수가 올바르지 않습니다."
-                ) from exc
-            if not 0 <= score <= 1:
-                raise RerankerError(
-                    "Cohere 리랭킹 관련성 점수 범위가 올바르지 않습니다."
-                )
-            seen_indices.add(raw_index)
-            results.append(
-                RerankResult(
-                    index=raw_index,
-                    relevance_score=score,
-                )
-            )
-        return results
-
-
 def hybrid_search(
     collection: Any,
     *,
@@ -480,9 +336,8 @@ def hybrid_search(
     candidate_k: int,
     top_k: int,
     min_relevance_score: float,
-    reranker: Reranker | None = None,
 ) -> list[RankedCandidate]:
-    """벡터·BM25 후보를 결합하고 선택적으로 외부 리랭킹을 적용한다."""
+    """벡터·BM25 후보를 RRF와 법령 일치 신호로 결정론적으로 재정렬한다."""
     try:
         vector_result = collection.query(
             query_embeddings=[list(query_embedding)],
@@ -505,36 +360,6 @@ def hybrid_search(
     candidates = _fuse_candidates(vector_ranked, lexical_ranked)
     if not candidates:
         return []
-
-    if reranker is not None:
-        try:
-            reranked = reranker.rerank(
-                query,
-                [candidate.document.text for candidate in candidates],
-                top_n=len(candidates),
-            )
-        except RerankerError:
-            reranked = []
-        if reranked:
-            external_results: list[RankedCandidate] = []
-            for result in reranked:
-                candidate = candidates[result.index]
-                if result.relevance_score < min_relevance_score:
-                    continue
-                external_results.append(
-                    RankedCandidate(
-                        document=candidate.document,
-                        vector_score=candidate.vector_score,
-                        lexical_score=candidate.lexical_score,
-                        fusion_score=candidate.fusion_score,
-                        legal_token_coverage=(
-                            candidate.legal_token_coverage
-                        ),
-                        relevance_score=result.relevance_score,
-                        ordering_score=result.relevance_score,
-                    )
-                )
-            return external_results[:top_k]
 
     vector_top_ids = {
         document.document_id for document, _score in vector_ranked[:top_k]

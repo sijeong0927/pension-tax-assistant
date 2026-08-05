@@ -133,7 +133,6 @@ def evaluate(
             min_relevance_score=(
                 rag_service.settings.rag_min_relevance_score
             ),
-            reranker=None,
         )
         baseline_rankings[evaluation_case.case_id] = [
             str(result["document_id"]) for result in vector_results
@@ -185,7 +184,7 @@ def evaluate(
         "document_count": document_count,
         "top_k": top_k,
         "candidate_k": candidate_k,
-        "reranker": "disabled_for_deterministic_evaluation",
+        "ranking_strategy": "local_rrf",
         "vector_baseline": baseline_metrics.to_dict(),
         "hybrid": hybrid_metrics.to_dict(),
         "improvement": metrics_improvement(
