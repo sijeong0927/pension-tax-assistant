@@ -64,13 +64,92 @@ function historyToMessages(history: ChatMessage[]): Message[] {
   }));
 }
 
-function formatText(text: string) {
-  return text.split('\n').map((line, i) => (
-    <span key={i}>
-      {line}
-      {i < text.split('\n').length - 1 && <br />}
+function CitationReference({ source, index }: { source: Source; index: number }) {
+  const title = source.title || source.source_title || source.document_id || '출처 제목 미등록';
+  const sourceName = source.source_title || '공식 출처 정보 미등록';
+  const citation = `[문서 ${index + 1}]`;
+  const triggerClassName = 'font-semibold underline decoration-dotted underline-offset-2 cursor-help rounded focus:outline-none focus:ring-2 focus:ring-offset-1';
+  const triggerStyle = {
+    color: 'var(--color-primary)',
+    textDecorationColor: 'rgba(53,37,205,0.45)',
+  };
+
+  const trigger = source.source_url ? (
+    <a
+      href={source.source_url}
+      target="_blank"
+      rel="noreferrer"
+      className={triggerClassName}
+      style={triggerStyle}
+      aria-label={`${citation} 출처 열기: ${title}`}
+    >
+      {citation}
+    </a>
+  ) : (
+    <span
+      tabIndex={0}
+      className={triggerClassName}
+      style={triggerStyle}
+      aria-label={`${citation} 출처: ${title}`}
+    >
+      {citation}
     </span>
-  ));
+  );
+
+  return (
+    <span className="group relative inline-flex align-baseline">
+      {trigger}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 w-64 rounded-lg px-3 py-2 text-left text-xs leading-relaxed opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+        style={{
+          background: 'var(--color-on-surface)',
+          color: 'white',
+          whiteSpace: 'normal',
+        }}
+      >
+        <span className="block font-semibold">문서 {index + 1}</span>
+        <span className="mt-1 block">{title}</span>
+        <span className="mt-1 block opacity-80">출처: {sourceName}</span>
+        {source.effective_date && (
+          <span className="mt-1 block opacity-80">기준일: {source.effective_date}</span>
+        )}
+        {source.source_url && (
+          <span className="mt-1 block opacity-80">클릭하면 공식 출처를 엽니다.</span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+function formatText(text: string, sources: Source[] = []) {
+  const citationPattern = /\[문서\s*(\d+)\]/g;
+  const lines = text.split('\n');
+
+  return lines.map((line, lineIndex) => {
+    const parts = line.split(citationPattern);
+
+    return (
+      <span key={lineIndex}>
+        {parts.map((part, partIndex) => {
+          if (partIndex % 2 === 0) return part;
+
+          const sourceIndex = Number(part) - 1;
+          const source = sources[sourceIndex];
+          if (!source) return `[문서 ${part}]`;
+
+          return (
+            <CitationReference
+              key={`${lineIndex}-${partIndex}`}
+              source={source}
+              index={sourceIndex}
+            />
+          );
+        })}
+        {lineIndex < lines.length - 1 && <br />}
+      </span>
+    );
+  });
 }
 
 function TypingDots() {
@@ -700,7 +779,7 @@ export default function ChatPage() {
                         whiteSpace: 'pre-wrap',
                       }}
                     >
-                      {msg.isTyping ? <TypingDots /> : formatText(msg.text)}
+                      {msg.isTyping ? <TypingDots /> : formatText(msg.text, msg.sources)}
                       {/* Sources — 콤팝트 쳩 */}
                       {msg.sources && msg.sources.length > 0 && (
                         <div
@@ -719,7 +798,7 @@ export default function ChatPage() {
                             </span>
                           </div>
                           <div className="flex flex-col gap-1">
-                            {msg.sources.slice(0, 3).map((src, i) => (
+                            {msg.sources.map((src, i) => (
                               <SourceChip key={`${src.document_id ?? src.title ?? i}-${i}`} source={src} index={i} />
                             ))}
                           </div>
