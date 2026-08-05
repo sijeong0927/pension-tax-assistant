@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from app.core.config import ConfigurationError, RAGSettings
+from app.core.prompts import RAG_SYSTEM_PROMPT
 from app.services.knowledge_base import load_knowledge_base
 from app.services.rag_service import RAGService, RAGServiceError
 
@@ -70,6 +71,14 @@ class FakeCollection:
             "distances": [[self.distance]],
         }
 
+    def get(self, **_: Any) -> dict[str, Any]:
+        result = self.query()
+        return {
+            "ids": result["ids"][0],
+            "documents": result["documents"][0],
+            "metadatas": result["metadatas"][0],
+        }
+
     def upsert(self, **kwargs: Any) -> None:
         self.upsert_payload = kwargs
 
@@ -81,10 +90,14 @@ def make_settings(tmp_path: Path) -> RAGSettings:
         openai_embedding_model="text-embedding-3-small",
         openai_timeout_seconds=30,
         openai_max_retries=1,
+        cohere_api_key=None,
+        cohere_rerank_model="rerank-v4.0-fast",
+        cohere_timeout_seconds=10,
         chroma_persist_dir=tmp_path / ".chroma",
         chroma_collection_name="test_collection",
         knowledge_base_path=Path("app/data/tax_faq.json"),
         rag_top_k=4,
+        rag_candidate_k=12,
         rag_min_relevance_score=0.35,
         rag_max_index_documents=50,
         rag_max_pdf_documents=1000,
@@ -108,6 +121,12 @@ def test_answer_question_returns_sources(tmp_path: Path) -> None:
     assert answer.sources[0].relevance_score == 0.9
     assert openai_client.responses.calls[0]["model"] == "gpt-4o-mini"
     assert "[문서 1]" in openai_client.responses.calls[0]["input"]
+
+
+def test_system_prompt_blocks_unsupported_numeric_transformations() -> None:
+    assert "숫자를 임의로 보간·환산·계산하지 마세요" in RAG_SYSTEM_PROMPT
+    assert "문서 간 수치가 다르면" in RAG_SYSTEM_PROMPT
+    assert "계산 기준이나 단위를 확정할 수 없으면" in RAG_SYSTEM_PROMPT
 
 
 def test_low_relevance_skips_answer_generation(tmp_path: Path) -> None:

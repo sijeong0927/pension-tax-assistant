@@ -121,6 +121,22 @@ def test_chunk_text_rejects_invalid_boundaries(
         index_pdf.chunk_text("text", chunk_size, overlap)
 
 
+def test_default_pdf_chunks_keep_exactly_100_characters_of_overlap() -> None:
+    text = "".join(chr(0xAC00 + index) for index in range(700))
+
+    chunks = index_pdf.chunk_text(text, chunk_size=600, overlap=100)
+
+    assert len(chunks) == 2
+    assert chunks[0][-100:] == chunks[1][:100]
+    assert chunks[1] == text[500:700]
+
+
+def test_pdf_parser_defaults_to_100_character_overlap() -> None:
+    args = index_pdf.parse_arguments([])
+
+    assert args.overlap == 100
+
+
 @pytest.mark.parametrize(
     "arguments",
     [

@@ -149,12 +149,12 @@ flowchart LR
 
 ## 구현 현황
 
-> 기준: 2026-08-04, `main` 커밋 `47bf153`
+> 기준: 2026-08-05, 이 문서가 포함된 작업 브랜치
 
 | 영역 | 상태 |
 | --- | --- |
 | FastAPI 애플리케이션, CORS 및 루트 API | ✅ 구현 |
-| 연금저축·IRP·ISA 가이드 및 FAQ 30개 | ✅ 출처 메타데이터 포함 |
+| 연금·일반 연말정산 가이드 및 FAQ 41개 | ✅ 출처·근거 청크 메타데이터 포함 |
 | 연금계좌 세액공제 계산 서비스 및 단위 테스트 | ✅ 구현 |
 | `POST /api/v1/tax/diagnose` 진단 API | ✅ 구현 |
 | ChromaDB 임베딩·검색, OpenAI RAG 엔진 및 PDF 인덱서 | ✅ 구현 |
@@ -167,9 +167,10 @@ flowchart LR
 - `app/main.py`: FastAPI 앱, CORS, 진단·챗봇 라우터 등록과 `/` 루트 API
 - `app/api/v1/diagnose.py`: 총급여와 연금저축·IRP 납입액을 받는 세액공제 진단 API
 - `app/api/v1/chat.py`: 질문을 받아 `RAGService`를 호출하고 답변과 참조 문서를 반환하는 챗봇 API
-- `app/services/rag_service.py`: ChromaDB 검색, 관련성 기준 확인, OpenAI 답변 생성과 출처 반환
+- `app/services/hybrid_search.py`: BM25·ChromaDB Vector 후보 결합, RRF 및 선택적 Cohere 리랭킹
+- `app/services/rag_service.py`: 하이브리드 검색, 관련성 기준 확인, OpenAI 답변 생성과 출처 반환
 - `app/core/`: 환경변수 설정, 공통 프롬프트와 ChromaDB 컬렉션 관리
-- `app/data/tax_faq.json`: 가이드 1개와 FAQ 30개, 각 문서의 출처·기준일·검증일 메타데이터
+- `app/data/tax_faq.json`: 가이드 1개와 FAQ 41개, 각 문서의 출처·기준일·검증일·근거 청크 메타데이터
 - `app/services/tax_credit_service.py`: 총급여 5,500만 원 경계, 연금저축 600만 원·합산 900만 원 한도, 예상 세액공제액과 추가 납입 권장액 계산
 - `scripts/index_tax_faq.py`: 지식베이스 스키마·중복·출처 메타데이터를 검증한 뒤 FAQ를 수동 인덱싱
 - `scripts/index_pdf.py`: 국세청 PDF SHA-256 검증, 청크 분할, 임베딩 요청 한도와 원자적 교체를 처리하는 PDF 인덱서
@@ -183,7 +184,7 @@ FAQ는 엄격 모드(`--strict-provenance`)에서 출처 메타데이터 누락�
 
 ## GitHub 이슈 및 PR
 
-> GitHub 조회 기준: 2026-08-04
+> GitHub 조회 기준: 2026-08-05
 
 ### 이슈
 
@@ -197,7 +198,8 @@ FAQ는 엄격 모드(`--strict-provenance`)에서 출처 메타데이터 누락�
 | [#12](https://github.com/sijeong0927/pension-tax-assistant/issues/12) (프로젝트 Issue #6) | 연금 세액공제 진단 API | `@sijeong0927` | Closed | PR #15, `main` 반영 |
 | [#13](https://github.com/sijeong0927/pension-tax-assistant/issues/13) (프로젝트 Issue #7) | RAG 챗봇 질문 답변 API | 미지정 | Closed | PR #17, `main` 반영 |
 | [#16](https://github.com/sijeong0927/pension-tax-assistant/issues/16) (프로젝트 Issue #8) | 연금 세제 지식·FAQ 데이터 추가 | 미지정 | Open | PR #20으로 코드 반영, 이슈는 미종료 |
-| [#22](https://github.com/sijeong0927/pension-tax-assistant/issues/22) | 일반 연말정산 FAQ 지식 데이터 확장 | 미지정 | Open | 미반영 |
+| [#22](https://github.com/sijeong0927/pension-tax-assistant/issues/22) | 일반 연말정산 FAQ 지식 데이터 확장 | 미지정 | Closed | PR #25, `main` 반영 |
+| [#28](https://github.com/sijeong0927/pension-tax-assistant/issues/28) (프로젝트 Issue #11) | RAG 하이브리드 검색 및 리랭킹 | 미지정 | Open | 이 작업 브랜치에서 구현 |
 
 ### 주요 기능 Pull Requests
 
@@ -227,7 +229,7 @@ Issue #5와 #16은 GitHub에서 Open이지만 관련 구현은 `main`에 반영�
 | 프론트엔드 | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
 | 백엔드 | Python, FastAPI, Pydantic, Uvicorn |
 | 계산 엔진 | `Decimal` 기반 세액공제 한도·예상 금액 계산 |
-| 지식 검색 | 공식 FAQ·PDF → OpenAI 임베딩 → ChromaDB 코사인 유사도 검색 |
+| 지식 검색 | ChromaDB Vector + BM25 → RRF → 선택적 Cohere 리랭킹 |
 | LLM | OpenAI Responses API, 기본 `gpt-4o-mini` |
 | 설정 관리 | python-dotenv 및 환경변수 |
 
@@ -236,8 +238,11 @@ flowchart TB
     UI["진단 · 챗봇 UI"] --> API["FastAPI API<br/>/api/v1"]
     API --> CALC["진단 및 계산 엔진<br/>세액공제 예상 금액"]
     API --> RAG["RAG 서비스<br/>근거 검색 · 답변 생성"]
-    DATA["공식 세법 자료<br/>FAQ · PDF"] -->|"수동 검증 · 임베딩"| VECTOR["ChromaDB<br/>코사인 유사도 검색"]
-    RAG <-->|"관련 문서 검색"| VECTOR
+    DATA["공식 세법 자료<br/>FAQ · PDF"] -->|"수동 검증 · 임베딩"| VECTOR["ChromaDB<br/>Vector 검색"]
+    DATA --> BM25["BM25<br/>조문 · 수치 검색"]
+    VECTOR --> RERANK["RRF · 선택적 Cohere 리랭킹"]
+    BM25 --> RERANK
+    RAG <-->|"재정렬된 근거 문서"| RERANK
     RAG --> LLM["OpenAI Responses API<br/>기본 gpt-4o-mini"]
 ```
 
@@ -262,7 +267,9 @@ Copy-Item .env.example .env
 
 `.env`의 `OPENAI_API_KEY`에 로컬 개발용 키를 설정합니다. 실제 키는 코드, 문서,
 로그와 Git 커밋에 포함하지 않습니다. 전체 환경변수와 비용 제한 정책은
-[`docs/rag.md`](docs/rag.md)를 참고하세요.
+[`docs/rag.md`](docs/rag.md)를 참고하세요. 선택적으로 `COHERE_API_KEY`를 설정하면
+하이브리드 검색 후보에 Cohere 리랭킹이 적용되며, 미설정·장애 시 로컬 RRF 순위를
+사용합니다.
 
 ### 3. RAG 지식베이스 적재
 
@@ -376,6 +383,7 @@ pension-tax-assistant/
 │   ├── models/
 │   │   └── rag.py
 │   └── services/
+│       ├── hybrid_search.py
 │       ├── knowledge_base.py
 │       ├── rag_service.py
 │       └── tax_credit_service.py
@@ -395,6 +403,7 @@ pension-tax-assistant/
 │           └── Header.tsx
 └── tests/
     ├── test_index_pdf.py
+    ├── test_hybrid_search.py
     ├── test_knowledge_base.py
     ├── test_rag_service.py
     └── test_tax_credit_service.py
@@ -472,10 +481,11 @@ pension-tax-assistant/
 - [x] 연금계좌 세액공제 계산 서비스 구현 (#3)
 - [x] 계산 서비스 단위 테스트 16개 작성 (#3)
 - [x] ChromaDB 및 OpenAI RAG 파이프라인 구축 (#4)
+- [x] BM25·Vector 하이브리드 검색 및 리랭킹 파이프라인 구축 (#28, 프로젝트 Issue #11)
 - [x] Next.js/React 랜딩·진단·리포트 UI 구현 (#21)
 - [x] 연금 세액공제 진단 API 구현 (#12, 프로젝트 Issue #6)
 - [x] RAG 챗봇 질문 답변 API 구현 (#13, 프로젝트 Issue #7)
-- [ ] 일반 연말정산 FAQ 지식 데이터 확장 (#22)
+- [x] 일반 연말정산 FAQ 지식 데이터 확장 (#22, PR #25)
 - [ ] 챗봇 API 자동화 테스트, 호출 제한과 안전한 오류 응답 보강
 - [ ] 사용자 상태 기반 추천 질문 생성
 - [ ] 챗봇 UI 구현

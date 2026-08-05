@@ -77,10 +77,14 @@ class RAGSettings:
     openai_embedding_model: str
     openai_timeout_seconds: float
     openai_max_retries: int
+    cohere_api_key: str | None
+    cohere_rerank_model: str
+    cohere_timeout_seconds: float
     chroma_persist_dir: Path
     chroma_collection_name: str
     knowledge_base_path: Path
     rag_top_k: int
+    rag_candidate_k: int
     rag_min_relevance_score: float
     rag_max_index_documents: int
     rag_max_pdf_documents: int
@@ -105,6 +109,15 @@ class RAGSettings:
                 minimum=0,
                 maximum=1,
             ),
+            cohere_api_key=os.getenv("COHERE_API_KEY") or None,
+            cohere_rerank_model=os.getenv(
+                "COHERE_RERANK_MODEL",
+                "rerank-v4.0-fast",
+            ),
+            cohere_timeout_seconds=_positive_float(
+                "COHERE_TIMEOUT_SECONDS",
+                10.0,
+            ),
             chroma_persist_dir=_project_path(
                 "CHROMA_PERSIST_DIR",
                 ".chroma",
@@ -122,6 +135,12 @@ class RAGSettings:
                 4,
                 minimum=1,
                 maximum=8,
+            ),
+            rag_candidate_k=_bounded_int(
+                "RAG_CANDIDATE_K",
+                12,
+                minimum=1,
+                maximum=32,
             ),
             rag_min_relevance_score=_score(
                 "RAG_MIN_RELEVANCE_SCORE",
