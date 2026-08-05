@@ -150,63 +150,53 @@ function pageLabel(source: Source) {
   return null;
 }
 
-function SourceCard({ source, index }: { source: Source; index: number }) {
-  const relevance = relevancePercent(source.relevance_score);
-  const page = pageLabel(source);
-  const title = source.title || source.source_title || source.document_id || `참조 문서 ${index + 1}`;
-  const hasMetadata = Boolean(source.category || source.effective_date || source.last_verified);
+/** 콤팝트 한 줄짜리 출체 칩 */
+function SourceChip({ source, index }: { source: Source; index: number }) {
+  const relevance = typeof source.relevance_score === 'number'
+    ? `${Math.round(Math.max(0, Math.min(1, source.relevance_score)) * 100)}%`
+    : null;
+  const title = source.title || source.source_title || source.document_id || `참조 ${index + 1}`;
+  const shortTitle = title.length > 30 ? `${title.slice(0, 30)}…` : title;
 
-  return (
-    <article className="source-card">
-      <div className="source-card-topline">
-        <span className="source-chip source-chip--primary">문서 {index + 1}</span>
-        {page && <span className="source-chip">PDF {page}</span>}
-        {source.provenance_verified && <span className="source-chip">출처 검증</span>}
-        {source.provenance_verified === false && <span className="source-chip">검증 필요</span>}
-        {relevance && <span className="source-score">연관도 {relevance}</span>}
-      </div>
-
-      <p className="source-title">{title}</p>
-
-      {hasMetadata && (
-        <div className="source-meta-grid">
-          {source.category && (
-            <span>
-              <span className="source-meta-label">분류</span>
-              {source.category}
-            </span>
-          )}
-          {source.effective_date && (
-            <span>
-              <span className="source-meta-label">기준일</span>
-              {source.effective_date}
-            </span>
-          )}
-          {source.last_verified && (
-            <span>
-              <span className="source-meta-label">검증일</span>
-              {source.last_verified}
-            </span>
-          )}
-        </div>
+  const content = (
+    <div
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs"
+      style={{
+        background: 'rgba(229,238,255,0.6)',
+        border: '1px solid rgba(199,196,216,0.35)',
+        color: 'var(--color-on-surface-variant)',
+        maxWidth: '100%',
+      }}
+    >
+      <span
+        className="material-symbols-outlined flex-shrink-0"
+        style={{ fontSize: '13px', color: 'var(--color-primary)' }}
+      >
+        description
+      </span>
+      <span className="font-medium flex-shrink-0" style={{ color: 'var(--color-primary)' }}>
+        {index + 1}
+      </span>
+      <span className="truncate" style={{ minWidth: 0 }}>{shortTitle}</span>
+      {relevance && (
+        <span
+          className="flex-shrink-0 px-1.5 py-0.5 rounded-full font-semibold"
+          style={{ background: 'rgba(0,108,73,0.1)', color: 'var(--color-secondary)', fontSize: '10px' }}
+        >
+          {relevance}
+        </span>
       )}
-
-      {(source.source_title || source.source_url) && (
-        <div className="source-link-row">
-          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
-            verified
-          </span>
-          {source.source_url ? (
-            <a href={source.source_url} target="_blank" rel="noreferrer">
-              {source.source_title || '공식 출처 열기'}
-            </a>
-          ) : (
-            <span>{source.source_title}</span>
-          )}
-        </div>
-      )}
-    </article>
+    </div>
   );
+
+  if (source.source_url) {
+    return (
+      <a href={source.source_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+        {content}
+      </a>
+    );
+  }
+  return content;
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -729,21 +719,26 @@ export default function ChatPage() {
                       }}
                     >
                       {msg.isTyping ? <TypingDots /> : formatText(msg.text)}
-                      {/* Sources */}
+                      {/* Sources — 콤팝트 쳩 */}
                       {msg.sources && msg.sources.length > 0 && (
-                        <div className="source-section">
-                          <div className="source-section-header">
+                        <div
+                          className="mt-3 pt-2.5"
+                          style={{ borderTop: '1px solid rgba(199,196,216,0.2)' }}
+                        >
+                          <div className="flex items-center gap-1 mb-1.5">
                             <span
                               className="material-symbols-outlined"
-                              style={{ fontSize: '16px', color: 'var(--color-primary)' }}
+                              style={{ fontSize: '13px', color: 'var(--color-outline)' }}
                             >
                               library_books
                             </span>
-                            <p>참조한 공식 자료</p>
+                            <span className="text-xs" style={{ color: 'var(--color-outline)' }}>
+                              참조 자료
+                            </span>
                           </div>
-                          <div className="source-card-list">
-                            {msg.sources.slice(0, 4).map((src, i) => (
-                              <SourceCard key={`${src.document_id ?? src.title ?? i}-${i}`} source={src} index={i} />
+                          <div className="flex flex-col gap-1">
+                            {msg.sources.slice(0, 3).map((src, i) => (
+                              <SourceChip key={`${src.document_id ?? src.title ?? i}-${i}`} source={src} index={i} />
                             ))}
                           </div>
                         </div>
