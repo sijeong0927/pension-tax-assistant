@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 
 from app.db.session import get_db
 from app.models.tax_savings import TaxSavings
+from app.models.user import User
+from app.core.security import get_current_user, get_current_user_optional
 
 router = APIRouter()
 
@@ -26,12 +28,17 @@ class TaxSavingsResponse(BaseModel):
     data: Optional[dict] = None
 
 @router.post("/tax-savings", response_model=TaxSavingsResponse)
-def save_tax_savings(request: TaxSavingsRequest, db: Session = Depends(get_db)):
+def save_tax_savings(request: TaxSavingsRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        # Upsert logic
-        savings_record = db.query(TaxSavings).filter(TaxSavings.session_id == request.session_id).first()
+        # Upsert logic - prefer user_id
+        savings_record = db.query(TaxSavings).filter(TaxSavings.user_id == current_user.id).first()
+        
+        # Fallback to session_id migration
+        if not savings_record:
+            savings_record = db.query(TaxSavings).filter(TaxSavings.session_id == request.session_id).first()
         
         if savings_record:
+            savings_record.user_id = current_user.id
             savings_record.income_range = request.income_range
             savings_record.pension_savings_paid = request.pension_savings_paid
             savings_record.irp_paid = request.irp_paid
@@ -44,6 +51,7 @@ def save_tax_savings(request: TaxSavingsRequest, db: Session = Depends(get_db)):
         else:
             savings_record = TaxSavings(
                 session_id=request.session_id,
+                user_id=current_user.id,
                 income_range=request.income_range,
                 pension_savings_paid=request.pension_savings_paid,
                 irp_paid=request.irp_paid,
@@ -64,8 +72,11 @@ def save_tax_savings(request: TaxSavingsRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/tax-savings/{session_id}", response_model=TaxSavingsResponse)
-def get_tax_savings(session_id: str, db: Session = Depends(get_db)):
-    savings_record = db.query(TaxSavings).filter(TaxSavings.session_id == session_id).first()
+def get_tax_savings(session_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user_optional)):
+    if current_user:
+        savings_record = db.query(TaxSavings).filter(TaxSavings.user_id == current_user.id).first()
+    else:
+        savings_record = db.query(TaxSavings).filter(TaxSavings.session_id == session_id).first()
     
     if not savings_record:
         return TaxSavingsResponse(success=False, message="No data found for this session.")

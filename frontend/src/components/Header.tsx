@@ -1,10 +1,22 @@
 'use client';
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { isAuthenticated, removeAuthToken } from "@/lib/auth";
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    setLoggedIn(isAuthenticated());
+  }, []);
+
+  const handleLogout = () => {
+    removeAuthToken();
+    setLoggedIn(false);
+    window.location.reload();
+  };
 
   return (
     <header
@@ -62,6 +74,24 @@ export default function Header() {
           >
             Manual
           </a>
+          
+          {loggedIn ? (
+            <button
+              onClick={handleLogout}
+              className="text-sm font-semibold transition-colors px-4 py-1.5 rounded-full"
+              style={{ background: "rgba(199,196,216,0.2)", color: "var(--color-on-surface)" }}
+            >
+              로그아웃
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="text-sm font-semibold transition-colors px-4 py-1.5 rounded-full"
+              style={{ background: "var(--color-primary)", color: "white" }}
+            >
+              로그인 / 회원가입
+            </Link>
+          )}
         </nav>
 
         {/* Mobile menu button */}
@@ -99,6 +129,25 @@ export default function Header() {
           >
             Manual
           </a>
+          
+          {loggedIn ? (
+            <button
+              onClick={() => { handleLogout(); setMenuOpen(false); }}
+              className="text-sm font-semibold py-2 text-left"
+              style={{ color: "var(--color-on-surface-variant)" }}
+            >
+              로그아웃
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="text-sm font-semibold py-2"
+              style={{ color: "var(--color-primary)" }}
+              onClick={() => setMenuOpen(false)}
+            >
+              로그인 / 회원가입
+            </Link>
+          )}
         </div>
       )}
     </header>

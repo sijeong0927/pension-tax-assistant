@@ -7,6 +7,7 @@ class ChatHistory(Base):
     __tablename__ = "chat_histories"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=True)
     session_id = Column(String(100), index=True, nullable=False)
     role = Column(String(20), nullable=False)  # 'user' 또는 'assistant'
     message = Column(Text, nullable=False)     # PII 마스킹된 대화 내용
@@ -24,7 +25,7 @@ class ChatHistorySource(Base):
 
     __tablename__ = "chat_history_sources"
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(Integer, primary_primary=True, index=True, autoincrement=True)
     chat_history_id = Column(
         Integer,
         ForeignKey("chat_histories.id"),

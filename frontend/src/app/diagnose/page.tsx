@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Footer from '@/components/Footer';
+import { isAuthenticated } from '@/lib/auth';
 import {
   PENSION_SAVINGS_MAX,
   PENSION_STEP,
@@ -542,8 +543,14 @@ function Step3({
   
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const router = useRouter();
 
   const handleSave = async () => {
+    if (!isAuthenticated()) {
+      router.push('/login?redirect=/diagnose');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const SESSION_STORAGE_KEY = 'taxi_chat_session_id';

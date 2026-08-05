@@ -5,3 +5,7 @@ pytest
 chromadb>=1.5.9,<2
 openai>=2.53,<3
 pymupdf
+passlib[bcrypt]
+python-jose
+python-multipart
+email-validator

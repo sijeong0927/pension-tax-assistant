@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { fetchChatHistory, sendQueryStream, fetchSessions, deleteSession, fetchTaxSavings, type ChatMessage, type SessionMeta, type SourceDoc, type TaxSavingsData } from '@/lib/api';
+import { isAuthenticated } from '@/lib/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Source {
@@ -572,7 +573,20 @@ export default function ChatPage() {
         {sidebarView === 'history' && (
           <main className="flex-1 overflow-y-auto px-4 md:px-10 py-8">
             <div className="max-w-2xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
+              {!isAuthenticated() ? (
+                <div className="text-center py-20">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 bg-gray-100">
+                    <span className="material-symbols-outlined text-3xl" style={{ color: 'var(--color-on-surface-variant)' }}>history</span>
+                  </div>
+                  <h3 className="text-lg font-bold mb-2">로그인이 필요합니다</h3>
+                  <p className="text-sm text-gray-500 mb-6">과거 상담 내역을 저장하고 언제든 다시 확인해보세요.</p>
+                  <Link href="/login?redirect=/chat" className="px-6 py-3 rounded-xl font-semibold text-sm text-white" style={{ background: 'var(--color-primary)' }}>
+                    로그인하러 가기
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
                   <span
                     className="material-symbols-outlined"
@@ -611,8 +625,10 @@ export default function ChatPage() {
                     const timeStr = date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
                     return (
-                      <button
+                      <div
                         key={sess.session_id}
+                        role="button"
+                        tabIndex={0}
                         onClick={async () => {
                           // 해당 세션의 메시지를 백엔드에서 불러와 채팅 뷰로 전환
                           window.localStorage.setItem(SESSION_STORAGE_KEY, sess.session_id);
@@ -672,13 +688,15 @@ export default function ChatPage() {
                         <p className="text-xs mt-1.5 ml-6" style={{ color: 'var(--color-outline)' }}>
                           {dateStr} {timeStr}
                         </p>
-                      </button>
+                      </div>
                     );
                   })}
                   <p className="text-center text-xs mt-4" style={{ color: 'var(--color-outline)' }}>
                     기록은 서버(SQLite DB)에 안전하게 보관됩니다.
                   </p>
                 </div>
+              )}
+              </>
               )}
             </div>
           </main>
@@ -689,7 +707,20 @@ export default function ChatPage() {
         {sidebarView === 'savings' && (
           <main className="flex-1 overflow-y-auto px-4 md:px-10 py-8">
             <div className="max-w-2xl mx-auto">
-              <div className="flex items-center gap-2 mb-6">
+              {!isAuthenticated() ? (
+                <div className="text-center py-20">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 bg-gray-100">
+                    <span className="material-symbols-outlined text-3xl" style={{ color: 'var(--color-on-surface-variant)' }}>savings</span>
+                  </div>
+                  <h3 className="text-lg font-bold mb-2">로그인이 필요합니다</h3>
+                  <p className="text-sm text-gray-500 mb-6">나만의 절세 진단 결과를 기기 간 연동하여 관리하세요.</p>
+                  <Link href="/login?redirect=/chat" className="px-6 py-3 rounded-xl font-semibold text-sm text-white" style={{ background: 'var(--color-primary)' }}>
+                    로그인하러 가기
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 mb-6">
                 <span
                   className="material-symbols-outlined"
                   style={{ color: 'var(--color-secondary)', fontVariationSettings: "'FILL' 1" }}
@@ -762,6 +793,8 @@ export default function ChatPage() {
               <p className="text-xs text-center" style={{ color: 'var(--color-outline)', lineHeight: 1.6 }}>
                 실제 세액공제액은 결정세액 및 다른 공제 항목에 따라 달라질 수 있습니다. 중요한 결정 전 세무 전문가와 상담하세요.
               </p>
+              </>
+              )}
             </div>
           </main>
         )}

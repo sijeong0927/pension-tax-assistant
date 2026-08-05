@@ -338,8 +338,8 @@ class RAGService:
             
             # Validate JSON
             try:
-                json.loads(qr_text)
-                yield f"event: quick_replies\ndata: {qr_text}\n\n"
+                qr_json = json.loads(qr_text)
+                yield f"event: quick_replies\ndata: {json.dumps(qr_json, ensure_ascii=False)}\n\n"
             except:
                 yield f"event: quick_replies\ndata: []\n\n"
                 
