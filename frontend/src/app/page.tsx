@@ -1,8 +1,30 @@
+'use client';
+
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { useState, useEffect } from "react";
+import { isAuthenticated } from "@/lib/auth";
+import { fetchMe } from "@/lib/api";
 
 export default function Home() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    const auth = isAuthenticated();
+    setLoggedIn(auth);
+    if (auth) {
+      fetchMe().then((data) => {
+        if (data?.name) {
+          setUserName(data.name);
+        }
+      });
+    }
+  }, []);
+
   return (
     <>
       <Header />
@@ -28,6 +50,11 @@ export default function Home() {
 
             {/* Headline */}
             <h1 className="hero-headline">
+              {mounted && userName && (
+                <span className="block mb-2 text-3xl font-bold" style={{ color: "var(--color-on-surface)" }}>
+                  {userName}님!
+                </span>
+              )}
               2026 연금 세액공제<br />
               AI 빠른 경로 안내<br />
               <span style={{ color: "var(--color-primary)" }}>절세택시</span>
@@ -42,6 +69,16 @@ export default function Home() {
               &ldquo;아저씨, 연금저축이랑 IRP로 세금 얼마나 아껴요?&rdquo;<br />
               돌아가시지 말고 1초 만에 최적의 절세 경로로 안내받으세요.
             </p>
+
+            {mounted && !loggedIn && (
+              <Link 
+                href="/login" 
+                className="mt-2 px-8 py-3.5 rounded-full font-bold text-white shadow-lg transition-transform hover:-translate-y-1"
+                style={{ background: "var(--color-primary)" }}
+              >
+                로그인 / 회원가입
+              </Link>
+            )}
           </div>
 
           {/* ── Action Cards ── */}

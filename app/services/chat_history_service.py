@@ -23,13 +23,14 @@ class ChatHistoryService:
         return text
 
     @staticmethod
-    def save_message(db: Session, session_id: str, role: str, message: str) -> ChatHistory:
+    def save_message(db: Session, session_id: str, role: str, message: str, user_id: int | None = None) -> ChatHistory:
         """
         대화 메시지 마스킹 후 DB 저장
         """
         masked_message = ChatHistoryService.mask_pii(message)
         chat_entry = ChatHistory(
             session_id=session_id,
+            user_id=user_id,
             role=role,
             message=masked_message
         )
@@ -39,18 +40,18 @@ class ChatHistoryService:
         return chat_entry
 
     @staticmethod
-    def get_history(db: Session, session_id: str, limit: int = 50) -> List[ChatHistory]:
+    def get_history(db: Session, session_id: str, limit: int = 50, user_id: int | None = None) -> List[ChatHistory]:
         """
         특정 세션의 대화 이력 조회
         """
-        return db.query(ChatHistory)\
-                 .filter(ChatHistory.session_id == session_id)\
-                 .order_by(ChatHistory.created_at.asc())\
-                 .limit(limit)\
-                 .all()
+        query = db.query(ChatHistory).filter(ChatHistory.session_id == session_id)
+        if user_id is not None:
+            query = query.filter(ChatHistory.user_id == user_id)
+            
+        return query.order_by(ChatHistory.created_at.asc()).limit(limit).all()
 
     @staticmethod
-    def get_sessions(db: Session, limit: int = 50) -> List[dict]:
+    def get_sessions(db: Session, limit: int = 50, user_id: int | None = None) -> List[dict]:
         """
         저장된 세션 목록 조회 (가장 최근 메시지 기준 내림차순 정렬)
         세션별로 가장 첫 번째 사용자 메시지를 미리보기로 사용합니다.
@@ -58,12 +59,26 @@ class ChatHistoryService:
         """
         from sqlalchemy import func
         
-        # 1. 세션별 최신 메시지 시간과 메시지 갯수 조회
-        session_stats = db.query(
+        query = db.query(ChatHistory.session_id)
+        if user_id is not None:
+            query = query.filter(ChatHistory.user_id == user_id)
+            
+        # 세션별로 가장 늦은 created_at 조회
+        latest_subquery = query.group_by(ChatHistory.session_id).subquery()
+        
+        # 1. 세션 목록을 최신순으로 가져옴
+        sessions_query = db.query(
             ChatHistory.session_id,
-            func.count(ChatHistory.id).label('total_count'),
-            func.max(ChatHistory.created_at).label('last_activity')
-        ).group_by(ChatHistory.session_id).order_by(func.max(ChatHistory.created_at).desc()).limit(limit).all()
+            func.max(ChatHistory.created_at).label("last_active"),
+            func.count(ChatHistory.id).label('total_count')
+        )
+        if user_id is not None:
+            sessions_query = sessions_query.filter(ChatHistory.user_id == user_id)
+            
+        session_stats = sessions_query.group_by(ChatHistory.session_id)\
+            .order_by(func.max(ChatHistory.created_at).desc())\
+            .limit(limit)\
+            .all()
 
         sessions = []
         for stat in session_stats:
@@ -78,17 +93,21 @@ class ChatHistoryService:
             sessions.append({
                 "session_id": stat.session_id,
                 "preview": preview,
-                "created_at": int(stat.last_activity.timestamp() * 1000) if stat.last_activity else 0,
+                "created_at": int(stat.last_active.timestamp() * 1000) if stat.last_active else 0,
                 "total_count": stat.total_count
             })
             
         return sessions
 
     @staticmethod
-    def delete_session(db: Session, session_id: str) -> bool:
+    def delete_session(db: Session, session_id: str, user_id: int | None = None) -> bool:
         """
-        특정 세션의 대화 이력을 모두 삭제합니다.
+        특정 세션의 대화 내역 전체 삭제
         """
-        deleted_count = db.query(ChatHistory).filter(ChatHistory.session_id == session_id).delete()
+        query = db.query(ChatHistory).filter(ChatHistory.session_id == session_id)
+        if user_id is not None:
+            query = query.filter(ChatHistory.user_id == user_id)
+            
+        deleted_count = query.delete(synchronize_session=False)
         db.commit()
         return deleted_count > 0

@@ -10,6 +10,17 @@
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+import { getAuthToken } from './auth';
+
+const getHeaders = (): Record<string, string> => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = getAuthToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
 // ─── 타입 정의 ───────────────────────────────────────────────────────────────
 
 /** 백엔드 chat_histories 테이블 row에 대응하는 메시지 타입 */
@@ -65,7 +76,7 @@ export async function fetchChatHistory(sessionId: string): Promise<ChatMessage[]
   try {
     const res = await fetch(`${BASE_URL}/api/v1/chat/history/${encodeURIComponent(sessionId)}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       // 캐시 무효화: 항상 최신 대화 내역을 가져옴
       cache: 'no-store',
     });
@@ -98,7 +109,7 @@ export async function sendQuery(
 
   const res = await fetch(`${BASE_URL}/api/v1/chat/query`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getHeaders(),
     body: JSON.stringify(body),
   });
 
@@ -124,7 +135,7 @@ export async function fetchSessions(): Promise<SessionMeta[]> {
   try {
     const res = await fetch(`${BASE_URL}/api/v1/chat/sessions`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       cache: 'no-store',
     });
 
@@ -148,6 +159,7 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
   try {
     const res = await fetch(`${BASE_URL}/api/v1/chat/history/${encodeURIComponent(sessionId)}`, {
       method: 'DELETE',
+      headers: getHeaders(),
     });
     return res.ok;
   } catch (error) {
@@ -172,7 +184,7 @@ export async function saveTaxSavings(data: TaxSavingsData): Promise<boolean> {
   try {
     const res = await fetch(`${BASE_URL}/api/v1/tax-savings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(data),
     });
     return res.ok;
@@ -186,7 +198,7 @@ export async function fetchTaxSavings(sessionId: string): Promise<TaxSavingsData
   try {
     const res = await fetch(`${BASE_URL}/api/v1/tax-savings/${encodeURIComponent(sessionId)}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       cache: 'no-store',
     });
     if (!res.ok) return null;
@@ -217,7 +229,7 @@ export async function sendQueryStream(
   try {
     const res = await fetch(`${BASE_URL}/api/v1/chat/query/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ session_id: sessionId, question: query }),
     });
 
@@ -275,4 +287,14 @@ export async function sendQueryStream(
   } catch (error: any) {
     callbacks.onError?.(error.message);
   }
+}
+
+export async function fetchMe() {
+  const res = await fetch(`${BASE_URL}/api/v1/auth/me`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    return null;
+  }
+  return res.json();
 }

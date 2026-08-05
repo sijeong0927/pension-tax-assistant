@@ -7,6 +7,7 @@ from app.api.v1 import diagnose, chat
 from app.db.session import engine, Base
 import app.models.chat_history
 import app.models.tax_savings
+import app.models.user
 
 # 데이터 디렉토리 자동 생성
 os.makedirs("app/data", exist_ok=True)
@@ -26,10 +27,11 @@ app.add_middleware(
 )
 
 # 라우터 연결
-from app.api.v1 import diagnose, chat, tax_savings
+from app.api.v1 import diagnose, chat, tax_savings, auth
 app.include_router(diagnose.router, prefix="/api/v1", tags=["Tax Diagnosis"])
 app.include_router(chat.router, prefix="/api/v1", tags=["RAG Chatbot"])
 app.include_router(tax_savings.router, prefix="/api/v1", tags=["Tax Savings Dashboard"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 
 
 @app.get("/")

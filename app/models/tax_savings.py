@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from datetime import datetime, timezone
 from app.db.session import Base
 
@@ -6,6 +6,7 @@ class TaxSavings(Base):
     __tablename__ = "tax_savings"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=True)
     session_id = Column(String, index=True, nullable=False, unique=True)
     
     # 입력값 및 진단 결과
