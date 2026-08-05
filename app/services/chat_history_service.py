@@ -1,9 +1,23 @@
+import json
 import re
-from typing import List
+from collections.abc import Mapping, Sequence
+from typing import Any, List
 from sqlalchemy.orm import Session
-from app.models.chat_history import ChatHistory
+from app.models.chat_history import ChatHistory, ChatHistorySource
 
 class ChatHistoryService:
+    _SOURCE_FIELDS = (
+        "document_id",
+        "title",
+        "category",
+        "source_title",
+        "source_url",
+        "effective_date",
+        "last_verified",
+        "provenance_verified",
+        "relevance_score",
+    )
+
     @staticmethod
     def mask_pii(text: str) -> str:
         """
@@ -23,7 +37,14 @@ class ChatHistoryService:
         return text
 
     @staticmethod
-    def save_message(db: Session, session_id: str, role: str, message: str, user_id: int | None = None) -> ChatHistory:
+    def save_message(
+        db: Session,
+        session_id: str,
+        role: str,
+        message: str,
+        sources: Sequence[Mapping[str, Any]] | None = None,
+        user_id: int | None = None,
+    ) -> ChatHistory:
         """
         대화 메시지 마스킹 후 DB 저장
         """
@@ -35,9 +56,55 @@ class ChatHistoryService:
             message=masked_message
         )
         db.add(chat_entry)
+        db.flush()
+
+        if sources is not None:
+            db.add(
+                ChatHistorySource(
+                    chat_history_id=chat_entry.id,
+                    sources_json=ChatHistoryService._serialize_sources(sources),
+                )
+            )
         db.commit()
         db.refresh(chat_entry)
         return chat_entry
+
+    @classmethod
+    def get_sources(cls, chat_entry: ChatHistory) -> list[dict[str, Any]]:
+        """저장된 출처가 없거나 손상됐더라도 대화 이력 조회는 계속한다."""
+        source_record = chat_entry.source_record
+        if source_record is None:
+            return []
+
+        try:
+            raw_sources = json.loads(source_record.sources_json)
+        except (TypeError, json.JSONDecodeError):
+            return []
+
+        if not isinstance(raw_sources, list):
+            return []
+        return cls._normalize_sources(raw_sources)
+
+    @classmethod
+    def _serialize_sources(cls, sources: Sequence[Mapping[str, Any]]) -> str:
+        return json.dumps(cls._normalize_sources(sources), ensure_ascii=False)
+
+    @classmethod
+    def _normalize_sources(
+        cls, sources: Sequence[Mapping[str, Any]]
+    ) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        for source in sources:
+            if not isinstance(source, Mapping):
+                continue
+            normalized.append(
+                {
+                    field: source[field]
+                    for field in cls._SOURCE_FIELDS
+                    if source.get(field) is not None
+                }
+            )
+        return normalized
 
     @staticmethod
     def get_history(db: Session, session_id: str, limit: int = 50, user_id: int | None = None) -> List[ChatHistory]:
@@ -107,7 +174,17 @@ class ChatHistoryService:
         query = db.query(ChatHistory).filter(ChatHistory.session_id == session_id)
         if user_id is not None:
             query = query.filter(ChatHistory.user_id == user_id)
-            
-        deleted_count = query.delete(synchronize_session=False)
+
+        message_ids = [m.id for m in query.all()]
+
+        if message_ids:
+            db.query(ChatHistorySource).filter(
+                ChatHistorySource.chat_history_id.in_(message_ids)
+            ).delete(synchronize_session=False)
+
+            deleted_count = query.delete(synchronize_session=False)
+        else:
+            deleted_count = 0
+
         db.commit()
         return deleted_count > 0
