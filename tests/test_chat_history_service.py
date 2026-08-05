@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db.session import Base
 from app.models.chat_history import ChatHistory, ChatHistorySource
+from app.models.user import User
 from app.services.chat_history_service import ChatHistoryService
 
 
@@ -10,6 +11,12 @@ def _session():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
     return sessionmaker(bind=engine)()
+
+
+def test_chat_history_source_has_a_primary_key():
+    assert [column.name for column in ChatHistorySource.__table__.primary_key.columns] == [
+        "id"
+    ]
 
 
 def test_assistant_sources_are_preserved_in_chat_history():
