@@ -25,7 +25,7 @@ class ChatHistorySource(Base):
 
     __tablename__ = "chat_history_sources"
 
-    id = Column(Integer, primary_primary=True, index=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     chat_history_id = Column(
         Integer,
         ForeignKey("chat_histories.id"),
