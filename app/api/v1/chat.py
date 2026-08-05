@@ -77,7 +77,8 @@ def query_chat(request: ChatQueryRequest, db: Session = Depends(get_db)):
             db=db,
             session_id=session_id,
             role="assistant",
-            message=final_answer
+            message=final_answer,
+            sources=formatted_sources,
         )
 
         return ChatQueryResponse(
@@ -105,13 +106,22 @@ def query_chat_stream(request: ChatQueryRequest, db: Session = Depends(get_db)):
     
     def event_generator():
         full_answer = ""
+        sources: list[dict[str, Any]] = []
         for event in rag_service.answer_question_stream(request.question, chat_history=chat_history):
-            if event.startswith("event: message"):
+            if event.startswith("event: sources"):
                 try:
-                    data_str = event.split("data: ")[1].strip()
+                    data_str = event.split("data: ", 1)[1].strip()
+                    parsed_sources = json.loads(data_str)
+                    if isinstance(parsed_sources, list):
+                        sources = [item for item in parsed_sources if isinstance(item, dict)]
+                except (IndexError, json.JSONDecodeError):
+                    sources = []
+            elif event.startswith("event: message"):
+                try:
+                    data_str = event.split("data: ", 1)[1].strip()
                     data = json.loads(data_str)
                     full_answer += data.get("content", "")
-                except:
+                except (IndexError, json.JSONDecodeError):
                     pass
             yield event
             
@@ -121,7 +131,8 @@ def query_chat_stream(request: ChatQueryRequest, db: Session = Depends(get_db)):
                 db=db,
                 session_id=session_id,
                 role="assistant",
-                message=full_answer
+                message=full_answer,
+                sources=sources,
             )
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -136,7 +147,17 @@ def get_chat_history(session_id: str, db: Session = Depends(get_db)):
     return {
         "success": True,
         "session_id": session_id,
-        "history": history
+        "history": [
+            {
+                "id": item.id,
+                "session_id": item.session_id,
+                "role": item.role,
+                "message": item.message,
+                "created_at": item.created_at,
+                "sources": ChatHistoryService.get_sources(item),
+            }
+            for item in history
+        ],
     }
 
 @router.get("/chat/sessions")

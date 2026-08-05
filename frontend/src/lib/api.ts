@@ -19,6 +19,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   message: string;
   created_at?: string;
+  sources?: SourceDoc[];
 }
 
 /** GET /api/v1/chat/history/{session_id} 응답 */

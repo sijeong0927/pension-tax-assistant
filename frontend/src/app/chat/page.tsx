@@ -62,6 +62,7 @@ function historyToMessages(history: ChatMessage[]): Message[] {
     id: item.id != null ? `history-${item.id}` : `history-idx-${idx}`,
     role: item.role === 'assistant' ? 'ai' : 'user',
     text: item.message,
+    sources: item.sources?.length ? item.sources : undefined,
   }));
 }
 
