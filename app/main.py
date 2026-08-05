@@ -2,6 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import diagnose, chat
 
+# DB 및 모델 import
+from app.db.session import engine, Base
+import app.models.chat_history
+
+# 서버 시작 시 SQLite 테이블 자동 생성
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(title="Pension Tax Assistant API")
 
 # CORS 설정
