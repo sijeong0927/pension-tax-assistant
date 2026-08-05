@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import Link from 'next/link';
-import { fetchChatHistory, sendQuery, fetchSessions, deleteSession, type ChatMessage, type SessionMeta } from '@/lib/api';
+import { fetchChatHistory, sendQueryStream, fetchSessions, deleteSession, fetchTaxSavings, type ChatMessage, type SessionMeta, type SourceDoc, type TaxSavingsData } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Source {
@@ -21,8 +21,9 @@ interface Message {
   id: string;
   role: 'ai' | 'user';
   text: string;
-  sources?: Source[];
+  sources?: SourceDoc[];
   isTyping?: boolean;
+  quickReplies?: string[];
 }
 
 const QUICK_ACTIONS = [
@@ -258,6 +259,14 @@ export default function ChatPage() {
   const [sidebarView, setSidebarView] = useState<'chat' | 'history' | 'savings'>('chat');
   // localStorage에 축적된 과거 세션 목록
   const [sessionList, setSessionList] = useState<SessionMeta[]>([]);
+  const [savingsData, setSavingsData] = useState<TaxSavingsData | null>(null);
+
+  // When sidebarView changes to savings, fetch savings data
+  useEffect(() => {
+    if (sidebarView === 'savings' && sessionId) {
+      fetchTaxSavings(sessionId).then(setSavingsData);
+    }
+  }, [sidebarView, sessionId]);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -332,23 +341,43 @@ export default function ChatPage() {
     fetchSessions().then(setSessionList);
 
     try {
-      // api.ts의 sendQuery 사용 (session_id + question 전송, DB 저장은 백엔드에서 처리)
-      const json = await sendQuery(activeSessionId, trimmed);
-      const aiMsg: Message = {
-        id: `a-${Date.now()}`,
-        role: 'ai',
-        text: json.answer || '답변을 가져오지 못했습니다.',
-        sources: json.sources?.length ? json.sources : undefined,
-      };
-      setMessages((prev) => prev.filter((m) => !m.isTyping).concat(aiMsg));
+      await sendQueryStream(activeSessionId, trimmed, {
+        onSources: (sources) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === typingMsg.id ? { ...m, sources } : m
+            )
+          );
+        },
+        onMessage: (textChunk) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === typingMsg.id
+                ? { ...m, text: m.text + textChunk, isTyping: false }
+                : m
+            )
+          );
+        },
+        onQuickReplies: (replies) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === typingMsg.id ? { ...m, quickReplies: replies } : m
+            )
+          );
+        },
+        onError: (err) => {
+          const errMsg: Message = {
+            id: `err-${Date.now()}`,
+            role: 'ai',
+            text: `죄송합니다, 오류가 발생했습니다.\n${err}`,
+          };
+          setMessages((prev) => prev.filter((m) => m.id !== typingMsg.id).concat(errMsg));
+        },
+        onDone: () => {
+          setLoading(false);
+        }
+      });
     } catch (e: unknown) {
-      const errMsg: Message = {
-        id: `err-${Date.now()}`,
-        role: 'ai',
-        text: `죄송합니다, 오류가 발생했습니다.\n${e instanceof Error ? e.message : '알 수 없는 오류'}`,
-      };
-      setMessages((prev) => prev.filter((m) => !m.isTyping).concat(errMsg));
-    } finally {
       setLoading(false);
     }
   }, [loading, sessionId]);
@@ -695,25 +724,38 @@ export default function ChatPage() {
               </div>
 
               {/* 세액공제 요약 카드 */}
-              <div
-                className="p-5 rounded-2xl mb-4"
-                style={{ background: 'linear-gradient(135deg, rgba(53,37,205,0.08), rgba(0,108,73,0.06))', border: '1px solid rgba(199,196,216,0.3)' }}
-              >
-                <p className="font-semibold text-sm mb-3" style={{ color: 'var(--color-on-surface-variant)' }}>현재 세액공제 트레이주열 요약</p>
-                {[
-                  { label: '연금저축 한도', value: '600만원', chip: '16.5%' },
-                  { label: 'IRP 포함 합산 한도', value: '900만원', chip: '13.2% ~' },
-                  { label: '연간 최대 환급액', value: '최대 148.5만원', chip: '5,500만원 이하' },
-                ].map(({ label, value, chip }) => (
-                  <div key={label} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid rgba(199,196,216,0.15)' }}>
-                    <span className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>{label}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm" style={{ color: 'var(--color-on-surface)' }}>{value}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(53,37,205,0.1)', color: 'var(--color-primary)' }}>{chip}</span>
+              {savingsData ? (
+                <div
+                  className="p-5 rounded-2xl mb-4"
+                  style={{ background: 'linear-gradient(135deg, rgba(53,37,205,0.08), rgba(0,108,73,0.06))', border: '1px solid rgba(199,196,216,0.3)' }}
+                >
+                  <p className="font-semibold text-sm mb-3" style={{ color: 'var(--color-on-surface-variant)' }}>저장된 세액공제 진단 결과</p>
+                  {[
+                    { label: '총 급여 구간', value: savingsData.income_range === 'over' ? '5,500만원 초과' : '5,500만원 이하', chip: '' },
+                    { label: '연금저축 납입액', value: `${(savingsData.pension_savings_paid / 10000).toLocaleString()}만원`, chip: '' },
+                    { label: 'IRP 납입액', value: `${(savingsData.irp_paid / 10000).toLocaleString()}만원`, chip: '' },
+                    { label: '총 납입액', value: `${((savingsData.pension_savings_paid + savingsData.irp_paid) / 10000).toLocaleString()}만원`, chip: '' },
+                    { label: '공제 대상 금액', value: `${(savingsData.deductible_amount / 10000).toLocaleString()}만원`, chip: savingsData.income_range === 'over' ? '13.2%' : '16.5%' },
+                    { label: '예상 환급액', value: `${(savingsData.estimated_refund / 10000).toLocaleString()}만원`, chip: '환급 예상' },
+                  ].map(({ label, value, chip }) => (
+                    <div key={label} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid rgba(199,196,216,0.15)' }}>
+                      <span className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>{label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm" style={{ color: 'var(--color-on-surface)' }}>{value}</span>
+                        {chip && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(53,37,205,0.1)', color: 'var(--color-primary)' }}>{chip}</span>}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div
+                  className="p-5 rounded-2xl mb-4 text-center"
+                  style={{ background: 'rgba(199,196,216,0.1)', border: '1px dashed rgba(199,196,216,0.5)' }}
+                >
+                  <p className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>저장된 절세 정보가 없습니다.</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-outline)' }}>진단 시뮬레이터를 통해 결과를 저장해보세요.</p>
+                </div>
+              )}
 
               {/* 진단 CTA */}
               <div
@@ -733,7 +775,7 @@ export default function ChatPage() {
                       style={{ background: 'var(--color-secondary)', color: 'white' }}
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>query_stats</span>
-                      진단 시뮬레이터 열기
+                      다시 진단하기
                     </Link>
                   </div>
                 </div>
@@ -805,6 +847,26 @@ export default function ChatPage() {
                         </div>
                       )}
                     </div>
+                    {/* Quick Replies */}
+                    {msg.quickReplies && msg.quickReplies.length > 0 && !msg.isTyping && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {msg.quickReplies.map((qr, i) => (
+                          <button
+                            key={i}
+                            onClick={() => sendMessage(qr)}
+                            disabled={loading}
+                            className="text-xs px-3 py-1.5 rounded-full border transition-colors"
+                            style={{
+                              background: 'white',
+                              borderColor: 'var(--color-primary)',
+                              color: 'var(--color-primary)',
+                            }}
+                          >
+                            {qr}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (

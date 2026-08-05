@@ -241,3 +241,5 @@ chroma_db/
 *.pdf
 *.hwp
 *.xlsx
+
+app/data/*.db
