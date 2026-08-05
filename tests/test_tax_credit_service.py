@@ -37,7 +37,7 @@ def test_pension_savings_limit_is_capped_at_6m():
     assert result.income_range == INCOME_UNDER_55M
     assert result.deductible_pension_savings == 6_000_000
     assert result.deductible_amount == 6_000_000
-    assert result.estimated_refund == 990_000
+    assert result.maximum_tax_credit == 990_000
     assert result.remaining_limit == 3_000_000
     assert result.recommended_additional_allocation.pension_savings == 0
     assert result.recommended_additional_allocation.irp == 3_000_000
@@ -54,7 +54,7 @@ def test_total_pension_limit_is_capped_at_9m():
     assert result.deductible_pension_savings == 6_000_000
     assert result.deductible_irp == 3_000_000
     assert result.deductible_amount == 9_000_000
-    assert result.estimated_refund == 1_188_000
+    assert result.maximum_tax_credit == 1_188_000
     assert result.remaining_limit == 0
     assert result.additional_refund_available == 0
 
@@ -67,7 +67,7 @@ def test_zero_paid_amount_returns_maximum_additional_refund():
     )
 
     assert result.deductible_amount == 0
-    assert result.estimated_refund == 0
+    assert result.maximum_tax_credit == 0
     assert result.remaining_limit == 9_000_000
     assert result.additional_refund_available == 1_485_000
     assert result.recommended_additional_allocation.pension_savings == 6_000_000
@@ -109,7 +109,7 @@ def test_irp_only_can_fill_total_9m_limit():
     assert result.deductible_pension_savings == 0
     assert result.deductible_irp == 9_000_000
     assert result.deductible_amount == 9_000_000
-    assert result.estimated_refund == 1_485_000
+    assert result.maximum_tax_credit == 1_485_000
     assert result.remaining_limit == 0
 
 
@@ -123,7 +123,7 @@ def test_irp_only_over_9m_is_capped_at_total_limit():
     assert result.deductible_pension_savings == 0
     assert result.deductible_irp == 9_000_000
     assert result.deductible_amount == 9_000_000
-    assert result.estimated_refund == 1_188_000
+    assert result.maximum_tax_credit == 1_188_000
     assert result.remaining_limit == 0
 
 
@@ -150,3 +150,16 @@ def test_bool_paid_amount_raises_type_error():
 def test_bool_total_salary_raises_type_error():
     with pytest.raises(TypeError):
         calculate_tax_credit_diagnosis(True, 0, 0)
+
+
+def test_low_salary_result_is_labeled_as_maximum_tax_credit_with_warning():
+    result = calculate_tax_credit_diagnosis(
+        total_salary=1_000_000,
+        pension_savings_paid=6_000_000,
+        irp_paid=3_000_000,
+    )
+
+    assert result.maximum_tax_credit == 1_485_000
+    assert "최대 세액공제 효과" in result.disclaimer
+    assert "실제 환급액이 아닙니다" in result.disclaimer
+    assert "결정세액을 반드시 확인하세요" in result.disclaimer

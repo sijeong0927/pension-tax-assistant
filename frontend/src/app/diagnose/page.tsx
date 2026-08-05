@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 
@@ -25,11 +25,12 @@ interface DiagnosisResult {
   deductible_pension_savings: number;
   deductible_irp: number;
   deductible_amount: number;
-  estimated_refund: number;
+  maximum_tax_credit: number;
   remaining_limit: number;
   additional_refund_available: number;
   recommended_additional_allocation: { pension_savings: number; irp: number };
   message: string;
+  disclaimer: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -466,18 +467,6 @@ const TOTAL_PENSION_MAX = 9_000_000;
 const PENSION_STEP = 500_000;
 const SALARY_STEP = 1_000_000;
 
-function calcSim(salary: number, pension: number, irp: number) {
-  const rate = salary <= SALARY_THRESHOLD ? 0.165 : 0.132;
-  const deductPension = Math.min(pension, PENSION_MAX);
-  const irpRoom = Math.max(TOTAL_PENSION_MAX - deductPension, 0);
-  const deductIrp = Math.min(irp, irpRoom);
-  const totalDeduct = deductPension + deductIrp;
-  const refund = Math.round(totalDeduct * rate);
-  const remaining = Math.max(TOTAL_PENSION_MAX - totalDeduct, 0);
-  const additionalRefund = Math.round(remaining * rate);
-  return { rate, deductPension, deductIrp, totalDeduct, refund, remaining, additionalRefund };
-}
-
 function sliderFill(value: number, min: number, max: number) {
   return `${((value - min) / (max - min)) * 100}%`;
 }
@@ -552,9 +541,40 @@ function Step3({
   );
   const [pension, setPension] = useState<number>(result.pension_savings_paid);
   const [irp, setIrp] = useState<number>(result.irp_paid);
+  const [sim, setSim] = useState<DiagnosisResult>(result);
+  const [simError, setSimError] = useState<string | null>(null);
 
-  const sim = calcSim(salary, pension, irp);
-  const isHighRate = sim.rate > 0.14;
+  const isHighRate = sim.deduction_rate > 0.14;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/v1/tax/diagnose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            total_salary: salary,
+            pension_savings: pension,
+            irp,
+          }),
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('계산 결과를 불러오지 못했습니다.');
+        const json = await response.json();
+        setSim(json.data);
+        setSimError(null);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setSimError(error instanceof Error ? error.message : '계산 중 오류가 발생했습니다.');
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [salary, pension, irp]);
 
   // IRP 최대값 = 9,000,000 - 연금저축 납입액 (합산 한도)
   const irpMax = Math.min(TOTAL_PENSION_MAX - Math.min(pension, PENSION_MAX), TOTAL_PENSION_MAX);
@@ -660,10 +680,10 @@ function Step3({
               transition: 'all 0.2s ease',
             }}
           >
-            {(sim.rate * 100).toFixed(1)}%
+            {(sim.deduction_rate * 100).toFixed(1)}%
           </p>
           <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-            <p className="text-sm opacity-75 mb-1">예상 세액공제 효과</p>
+            <p className="text-sm opacity-75 mb-1">최대 세액공제 효과</p>
             <p
               className="font-bold"
               style={{
@@ -673,7 +693,7 @@ function Step3({
                 transition: 'all 0.15s ease',
               }}
             >
-              {formatWon(sim.refund)}
+              {formatWon(sim.maximum_tax_credit)}
             </p>
           </div>
         </div>
@@ -688,7 +708,7 @@ function Step3({
               공제 대상 연금저축
             </span>
             <span className="font-semibold" style={{ color: 'var(--color-on-surface)', fontSize: '15px' }}>
-              {formatWon(sim.deductPension)}
+              {formatWon(sim.deductible_pension_savings)}
             </span>
           </div>
           <div className="result-metric">
@@ -696,7 +716,7 @@ function Step3({
               공제 대상 IRP
             </span>
             <span className="font-semibold" style={{ color: 'var(--color-on-surface)', fontSize: '15px' }}>
-              {formatWon(sim.deductIrp)}
+              {formatWon(sim.deductible_irp)}
             </span>
           </div>
           <div className="result-metric">
@@ -704,13 +724,13 @@ function Step3({
               총 공제 대상 납입액
             </span>
             <span className="font-bold" style={{ color: 'var(--color-primary)', fontSize: '16px' }}>
-              {formatWon(sim.totalDeduct)}
+              {formatWon(sim.deductible_amount)}
             </span>
           </div>
         </div>
 
         {/* ── 추가 납입 여력 ── */}
-        {sim.remaining > 0 && (
+        {sim.remaining_limit > 0 && (
           <div
             className="result-card"
             style={{ borderColor: 'rgba(108,248,187,0.4)', background: 'rgba(108,248,187,0.04)' }}
@@ -732,9 +752,9 @@ function Step3({
                   추가 납입 여력이 있어요!
                 </p>
                 <p className="text-sm mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>
-                  {formatWon(sim.remaining)} 더 납입하면{' '}
+                  {formatWon(sim.remaining_limit)} 더 납입하면{' '}
                   <strong style={{ color: 'var(--color-on-surface)' }}>
-                    {formatWon(sim.additionalRefund)}
+                    {formatWon(sim.additional_refund_available)}
                   </strong>{' '}
                   추가 공제 가능합니다.
                 </p>
@@ -742,6 +762,10 @@ function Step3({
             </div>
           </div>
         )}
+
+        <p className="text-center text-xs" style={{ color: 'rgba(70,69,85,0.65)', lineHeight: 1.6 }}>
+          {simError ?? sim.disclaimer}
+        </p>
 
         {/* 면책 */}
         <p

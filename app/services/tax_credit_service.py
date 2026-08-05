@@ -31,11 +31,12 @@ class TaxCreditDiagnosis:
     deductible_pension_savings: int
     deductible_irp: int
     deductible_amount: int
-    estimated_refund: int
+    maximum_tax_credit: int
     remaining_limit: int
     additional_refund_available: int
     recommended_additional_allocation: RecommendedAllocation
     message: str
+    disclaimer: str
 
 
 def _validate_won_amount(name: str, amount: int) -> None:
@@ -115,6 +116,22 @@ def _build_message(
     )
 
 
+def _build_disclaimer(maximum_tax_credit: int, total_salary: int) -> str:
+    warning = (
+        "표시 금액은 공제대상 납입액에 공제율을 적용한 최대 세액공제 효과이며, "
+        "실제 환급액이 아닙니다. 실제 적용액은 결정세액을 초과할 수 없고 "
+        "다른 공제 항목과 신고 결과에 따라 달라질 수 있습니다."
+    )
+
+    if maximum_tax_credit > total_salary:
+        return (
+            f"{warning} 현재 계산된 최대 세액공제 효과 {maximum_tax_credit:,}원이 "
+            f"입력한 총급여 {total_salary:,}원보다 크므로 결정세액을 반드시 확인하세요."
+        )
+
+    return warning
+
+
 def calculate_tax_credit_diagnosis(
     total_salary: int,
     pension_savings_paid: int = 0,
@@ -130,7 +147,7 @@ def calculate_tax_credit_diagnosis(
     remaining_after_pension_savings = TOTAL_PENSION_LIMIT - deductible_pension_savings
     deductible_irp = min(irp_paid, max(remaining_after_pension_savings, 0))
     deductible_amount = deductible_pension_savings + deductible_irp
-    estimated_refund = _round_won(Decimal(deductible_amount) * deduction_rate)
+    maximum_tax_credit = _round_won(Decimal(deductible_amount) * deduction_rate)
     remaining_limit = max(TOTAL_PENSION_LIMIT - deductible_amount, 0)
     additional_refund_available = _round_won(Decimal(remaining_limit) * deduction_rate)
     recommended_allocation = _calculate_recommended_additional_allocation(
@@ -149,7 +166,7 @@ def calculate_tax_credit_diagnosis(
         deductible_pension_savings=deductible_pension_savings,
         deductible_irp=deductible_irp,
         deductible_amount=deductible_amount,
-        estimated_refund=estimated_refund,
+        maximum_tax_credit=maximum_tax_credit,
         remaining_limit=remaining_limit,
         additional_refund_available=additional_refund_available,
         recommended_additional_allocation=recommended_allocation,
@@ -157,5 +174,9 @@ def calculate_tax_credit_diagnosis(
             deduction_rate=deduction_rate,
             deductible_amount=deductible_amount,
             remaining_limit=remaining_limit,
+        ),
+        disclaimer=_build_disclaimer(
+            maximum_tax_credit=maximum_tax_credit,
+            total_salary=total_salary,
         ),
     )
