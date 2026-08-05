@@ -66,7 +66,7 @@ export default function Home() {
 
             {/* Subtext */}
             <p className="hero-body">
-              &ldquo;아저씨, 연금저축이랑 IRP로 세금 얼마나 아껴요?&rdquo;<br />
+              &ldquo;기사님, 연금저축이랑 IRP로 세금 얼마나 아껴요?&rdquo;<br />
               돌아가시지 말고 1초 만에 최적의 절세 경로로 안내받으세요.
             </p>
 
