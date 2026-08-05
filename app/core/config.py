@@ -136,7 +136,7 @@ class RAGSettings:
             ),
             rag_max_index_documents=_bounded_int(
                 "RAG_MAX_INDEX_DOCUMENTS",
-                50,
+                100,
                 minimum=1,
                 maximum=100,
             ),

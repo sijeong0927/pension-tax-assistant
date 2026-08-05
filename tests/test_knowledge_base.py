@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_load_current_knowledge_base_has_verified_provenance() -> None:
     report = load_knowledge_base(PROJECT_ROOT / "app/data/tax_faq.json")
 
-    assert len(report.documents) == 42
+    assert len(report.documents) == 60
     assert report.documents[0].document_id == "guide_00"
     assert report.warnings == ()
     assert all(
@@ -31,7 +31,7 @@ def test_strict_provenance_accepts_current_knowledge_base() -> None:
         strict_provenance=True,
     )
 
-    assert len(report.documents) == 42
+    assert len(report.documents) == 60
 
 
 def test_general_year_end_faqs_reference_preindexed_nts_chunks() -> None:
@@ -42,6 +42,22 @@ def test_general_year_end_faqs_reference_preindexed_nts_chunks() -> None:
         document = documents[f"faq_{number}"]
         assert document.source_url.startswith("https://www.nts.go.kr/")
         assert document.source_chunk_ids.startswith("pdf_page_")
+
+
+def test_extended_faqs_have_distinct_questions_and_verified_provenance() -> None:
+    report = load_knowledge_base(
+        PROJECT_ROOT / "app/data/tax_faq.json",
+        strict_provenance=True,
+    )
+    documents = {document.document_id: document for document in report.documents}
+
+    assert {f"faq_{number}" for number in range(42, 60)} <= documents.keys()
+    assert all(
+        documents[f"faq_{number}"].provenance_verified
+        for number in range(42, 60)
+    )
+    assert "해당 과세기간" in documents["faq_42"].text
+    assert "5년 이내" in documents["faq_59"].text
 
 
 def test_corrected_faqs_use_official_sources_and_safe_tax_wording() -> None:

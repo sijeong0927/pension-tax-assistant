@@ -96,7 +96,7 @@ def make_settings(tmp_path: Path) -> RAGSettings:
         rag_top_k=4,
         rag_candidate_k=12,
         rag_min_relevance_score=0.35,
-        rag_max_index_documents=50,
+        rag_max_index_documents=100,
         rag_max_pdf_documents=1000,
         rag_max_pdf_embedding_requests=50,
     )
@@ -168,10 +168,10 @@ def test_index_knowledge_base_upserts_all_documents(tmp_path: Path) -> None:
 
     result = service.index_knowledge_base()
 
-    assert result.indexed_count == 42
+    assert result.indexed_count == 60
     assert collection.upsert_payload is not None
-    assert len(collection.upsert_payload["ids"]) == 42
-    assert len(collection.upsert_payload["embeddings"]) == 42
+    assert len(collection.upsert_payload["ids"]) == 60
+    assert len(collection.upsert_payload["embeddings"]) == 60
 
 
 def test_new_faq_query_keeps_corrected_public_pension_context(tmp_path: Path) -> None:
@@ -262,7 +262,7 @@ def test_chroma_round_trip_with_fake_openai(tmp_path: Path) -> None:
     indexing_result = service.index_knowledge_base()
     retrieved = service.retrieve("연금계좌 세액공제 가이드")
 
-    assert indexing_result.indexed_count == 42
+    assert indexing_result.indexed_count == 60
     assert retrieved
     assert retrieved[0].document_id == "guide_00"
     assert (tmp_path / ".chroma").exists()
