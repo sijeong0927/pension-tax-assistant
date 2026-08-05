@@ -75,18 +75,7 @@ function CitationReference({ source, index }: { source: Source; index: number })
     textDecorationColor: 'rgba(53,37,205,0.45)',
   };
 
-  const trigger = source.source_url ? (
-    <a
-      href={source.source_url}
-      target="_blank"
-      rel="noreferrer"
-      className={triggerClassName}
-      style={triggerStyle}
-      aria-label={`${citation} 공식 출처 열기: ${sourceName}`}
-    >
-      {citation}
-    </a>
-  ) : (
+  const trigger = (
     <span
       tabIndex={0}
       className={triggerClassName}
@@ -113,9 +102,6 @@ function CitationReference({ source, index }: { source: Source; index: number })
         <span className="mt-1 block">공식 출처: {sourceName}</span>
         {source.effective_date && (
           <span className="mt-1 block opacity-80">기준일: {source.effective_date}</span>
-        )}
-        {source.source_url && (
-          <span className="mt-1 block opacity-80">클릭하면 공식 출처를 엽니다.</span>
         )}
       </span>
     </span>
@@ -236,13 +222,6 @@ function SourceChip({ source, index }: { source: Source; index: number }) {
     </div>
   );
 
-  if (source.source_url) {
-    return (
-      <a href={source.source_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-        {content}
-      </a>
-    );
-  }
   return content;
 }
 
