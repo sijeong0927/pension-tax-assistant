@@ -77,9 +77,6 @@ class RAGSettings:
     openai_embedding_model: str
     openai_timeout_seconds: float
     openai_max_retries: int
-    cohere_api_key: str | None
-    cohere_rerank_model: str
-    cohere_timeout_seconds: float
     chroma_persist_dir: Path
     chroma_collection_name: str
     knowledge_base_path: Path
@@ -108,15 +105,6 @@ class RAGSettings:
                 1,
                 minimum=0,
                 maximum=1,
-            ),
-            cohere_api_key=os.getenv("COHERE_API_KEY") or None,
-            cohere_rerank_model=os.getenv(
-                "COHERE_RERANK_MODEL",
-                "rerank-v4.0-fast",
-            ),
-            cohere_timeout_seconds=_positive_float(
-                "COHERE_TIMEOUT_SECONDS",
-                10.0,
             ),
             chroma_persist_dir=_project_path(
                 "CHROMA_PERSIST_DIR",

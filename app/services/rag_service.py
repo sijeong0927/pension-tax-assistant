@@ -13,9 +13,7 @@ from app.core.prompts import (
 from app.core.vector_db import get_vector_collection
 from app.models.rag import RAGAnswer, RAGSource
 from app.services.hybrid_search import (
-    CohereReranker,
     HybridSearchError,
-    Reranker,
     hybrid_search,
 )
 from app.services.knowledge_base import (
@@ -83,19 +81,11 @@ class RAGService:
         openai_client: Any | None = None,
         chroma_client: Any | None = None,
         collection: Any | None = None,
-        reranker: Reranker | None = None,
     ) -> None:
         self.settings = settings or get_rag_settings()
         self._openai_client = openai_client
         self._chroma_client = chroma_client
         self._collection = collection
-        self._reranker = reranker
-        if self._reranker is None and self.settings.cohere_api_key:
-            self._reranker = CohereReranker(
-                api_key=self.settings.cohere_api_key,
-                model=self.settings.cohere_rerank_model,
-                timeout_seconds=self.settings.cohere_timeout_seconds,
-            )
 
     def _get_openai_client(self) -> Any:
         if self._openai_client is None:
@@ -235,7 +225,6 @@ class RAGService:
                 candidate_k=candidate_count,
                 top_k=requested_top_k,
                 min_relevance_score=self.settings.rag_min_relevance_score,
-                reranker=self._reranker,
             )
         except HybridSearchError as exc:
             raise RAGServiceError("ChromaDB 문서 검색에 실패했습니다.") from exc
