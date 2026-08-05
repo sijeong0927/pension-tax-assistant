@@ -51,8 +51,11 @@ def query_chat(request: ChatQueryRequest, db: Session = Depends(get_db)):
             message=request.question
         )
 
+        # 최근 대화 내역 조회 (최대 6건)
+        chat_history = ChatHistoryService.get_history(db, session_id, limit=6)
+
         # 2. RAG 서비스를 통한 질문 답변 생성
-        result = rag_service.answer_question(request.question)
+        result = rag_service.answer_question(request.question, chat_history=chat_history)
         
         # 속성값 읽기 (answer, sources)
         raw_answer = getattr(result, "answer", "")
@@ -95,4 +98,31 @@ def get_chat_history(session_id: str, db: Session = Depends(get_db)):
         "success": True,
         "session_id": session_id,
         "history": history
+    }
+
+@router.get("/chat/sessions")
+def get_chat_sessions(db: Session = Depends(get_db)):
+    """
+    저장된 채팅 세션 목록 조회 API
+    """
+    sessions = ChatHistoryService.get_sessions(db, limit=50)
+    return {
+        "success": True,
+        "sessions": sessions
+    }
+
+@router.delete("/chat/history/{session_id}")
+def delete_chat_session(session_id: str, db: Session = Depends(get_db)):
+    """
+    특정 세션의 대화 내역 전체 삭제 API
+    """
+    deleted = ChatHistoryService.delete_session(db, session_id)
+    if not deleted:
+        # 이미 삭제되었거나 없는 경우도 성공으로 처리할 수 있으나, 명확한 응답을 위해 404 가능성 고려
+        # 하지만 단순 구현을 위해 True 반환
+        pass
+    
+    return {
+        "success": True,
+        "message": f"Session {session_id} deleted successfully."
     }

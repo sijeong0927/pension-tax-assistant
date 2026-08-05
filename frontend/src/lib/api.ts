@@ -104,3 +104,49 @@ export async function sendQuery(
 
   return res.json() as Promise<QueryResponse>;
 }
+
+export interface SessionMeta {
+  session_id: string;
+  preview: string;
+  created_at: number;
+  total_count: number;
+}
+
+/**
+ * 저장된 세션 목록(상담 기록)을 서버에서 가져옵니다.
+ */
+export async function fetchSessions(): Promise<SessionMeta[]> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/v1/chat/sessions`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      console.error(`[fetchSessions] HTTP ${res.status}: ${res.statusText}`);
+      return [];
+    }
+
+    const data = await res.json();
+    return data.sessions ?? [];
+  } catch (error) {
+    console.error('[fetchSessions] 네트워크 오류:', error);
+    return [];
+  }
+}
+
+/**
+ * 특정 세션의 대화 내역 전체를 삭제합니다.
+ */
+export async function deleteSession(sessionId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/v1/chat/history/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+    });
+    return res.ok;
+  } catch (error) {
+    console.error('[deleteSession] 네트워크 오류:', error);
+    return false;
+  }
+}
