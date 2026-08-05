@@ -693,8 +693,10 @@ function Step3({
             step={PENSION_STEP}
             onChange={handlePensionChange}
             formatVal={formatWon}
-            hint="한도 600만원"
           />
+          <p className="text-xs leading-relaxed" style={{ color: 'rgba(70,69,85,0.62)' }}>
+            세액공제 인정 한도 600만원 (초과분은 공제 대상 아님)
+          </p>
           <SimSlider
             label="IRP(퇴직연금) 납입액"
             value={irp}
@@ -705,10 +707,10 @@ function Step3({
             onChange={handleIrpChange}
             formatVal={formatWon}
           />
-          <p className="text-xs leading-relaxed" style={{ color: 'rgba(70,69,85,0.62)' }}>
-            IRP 막대는 IRP 납입액을 900만원 고정 척도로 표시하며, 공제 대상 금액은
-            연금저축을 포함한 합산 한도 안에서 계산됩니다.
-          </p>
+          <div className="text-xs leading-relaxed" style={{ color: 'rgba(70,69,85,0.62)' }}>
+            <p>IRP만 보유 시 최대 900만원까지 인정</p>
+            <p>연금저축과 함께 보유 시, 합산 900만원 한도 내에서 연금저축은 최대 600만원까지만 인정됩니다</p>
+          </div>
         </div>
 
         {/* ── 핵심 세액공제 효과 카드 (슬라이더 연동) ── */}
