@@ -241,3 +241,6 @@ chroma_db/
 *.pdf
 *.hwp
 *.xlsx
+
+# Offline answer-quality evaluation reports
+/tmp/answer_quality_report*.json

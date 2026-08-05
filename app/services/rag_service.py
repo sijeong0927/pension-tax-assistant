@@ -257,6 +257,20 @@ class RAGService:
 
     def answer_question(self, question: str, chat_history: list[ChatHistory] | None = None) -> RAGAnswer:
         retrieved = self.retrieve(question)
+        return self.answer_from_retrieved_documents(
+            question,
+            retrieved,
+            chat_history=chat_history,
+        )
+
+    def answer_from_retrieved_documents(
+        self,
+        question: str,
+        retrieved: Sequence[RetrievedDocument],
+        *,
+        chat_history: Sequence[ChatHistory] | None = None,
+    ) -> RAGAnswer:
+        """Generate an answer from already retrieved evidence without retrieving again."""
         if not retrieved:
             return RAGAnswer(
                 answer=NO_RELEVANT_CONTEXT_MESSAGE,

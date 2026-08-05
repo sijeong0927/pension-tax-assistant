@@ -159,6 +159,7 @@ flowchart LR
 | `POST /api/v1/tax/diagnose` 진단 API | ✅ 구현 |
 | ChromaDB 임베딩·검색, OpenAI RAG 엔진 및 PDF 인덱서 | ✅ 구현 |
 | `POST /api/v1/chat/query` 챗봇 API | ✅ 구현 |
+| 답변 근거 충실도·문맥 관련성·환각 위험 오프라인 평가 | ✅ 구현 |
 | Next.js 랜딩·진단·리포트 UI | ✅ 구현 |
 | 챗봇 화면, 호출 제한 및 운영용 인증 | 🚧 개발 예정 |
 
@@ -169,6 +170,7 @@ flowchart LR
 - `app/api/v1/chat.py`: 질문을 받아 `RAGService`를 호출하고 답변과 참조 문서를 반환하는 챗봇 API
 - `app/services/hybrid_search.py`: BM25·ChromaDB Vector 후보 결합과 결정론적 RRF 재정렬
 - `app/services/rag_service.py`: 하이브리드 검색, 관련성 기준 확인, OpenAI 답변 생성과 출처 반환
+- `app/services/answer_quality_evaluation.py`: 근거 충실도·관련성·환각 위험·정책 설명 범위를 평가하는 오프라인 LLM 심사
 - `app/core/`: 환경변수 설정, 공통 프롬프트와 ChromaDB 컬렉션 관리
 - `app/data/tax_faq.json`: 가이드 1개와 FAQ 59개, 각 문서의 출처·기준일·검증일·근거 청크 메타데이터
 - `app/services/tax_credit_service.py`: 총급여 5,500만 원 경계, 연금저축 600만 원·합산 900만 원 한도, 예상 세액공제액과 추가 납입 권장액 계산
@@ -351,7 +353,24 @@ Swagger UI 또는 `POST /api/v1/chat/query`로 질문을 전달합니다.
 질문과 검색 결과에 따라 달라집니다. 현재 API는 대화 이력이나 세션을 받지 않는
 단일 질문 방식이며, 공개 배포 전 호출 제한과 안전한 오류 응답을 보강해야 합니다.
 
-### 7. 테스트 실행
+챗봇은 개인별 납입 가능액, 세액공제액, 최종 환급액을 계산하거나 확정하지 않습니다.
+개인 조건을 포함한 계산 요청에는 관련 정책을 설명한 뒤 진단 기능 또는 공식 채널로
+안내합니다.
+
+### 7. 답변 품질 평가
+
+아래 명령은 고정 평가셋으로 답변의 근거 충실도, 문맥 관련성, 환각 위험과 계산 범위
+준수를 점검합니다. 결과 표는 이 명령을 실행한 백엔드 터미널에 출력됩니다. FastAPI
+서버 실행 중에는 자동으로 실행되지 않습니다.
+
+```powershell
+python scripts/evaluate_answer_quality.py --output .\tmp\answer_quality_report.json
+```
+
+실행에는 답변 생성·판정용 OpenAI API 호출 비용이 발생합니다. 자세한 기준과 출력
+형식은 [`docs/answer-quality-evaluation.md`](docs/answer-quality-evaluation.md)를 참고하세요.
+
+### 8. 테스트 실행
 
 ```powershell
 pytest
@@ -481,6 +500,7 @@ pension-tax-assistant/
 - [x] 계산 서비스 단위 테스트 16개 작성 (#3)
 - [x] ChromaDB 및 OpenAI RAG 파이프라인 구축 (#4)
 - [x] BM25·Vector 하이브리드 검색 및 리랭킹 파이프라인 구축 (#28, 프로젝트 Issue #11)
+- [x] 정책 설명 챗봇 답변 품질 오프라인 평가 구축
 - [x] Next.js/React 랜딩·진단·리포트 UI 구현 (#21)
 - [x] 연금 세액공제 진단 API 구현 (#12, 프로젝트 Issue #6)
 - [x] RAG 챗봇 질문 답변 API 구현 (#13, 프로젝트 Issue #7)

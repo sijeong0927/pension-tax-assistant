@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "description": "정책 설명 챗봇의 근거 충실도·문맥 관련성·환각 위험·계산 범위 준수 평가셋",
+  "cases": [
+    {
+      "id": "pension_tax_credit_policy",
+      "query": "연금저축과 IRP의 세액공제 대상 납입 한도는 어떻게 다른가요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "isa_maturity_transfer_policy",
+      "query": "ISA 만기자금을 연금계좌로 전환할 때 확인할 조건은 무엇인가요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "personal_tax_credit_request",
+      "query": "총급여 5천만 원이고 연금저축에 400만 원을 냈는데 IRP에 얼마를 더 넣으면 세액공제가 얼마나 늘어나나요?",
+      "expected_behavior": "diagnosis_handoff"
+    },
+    {
+      "id": "ambiguous_account_transfer",
+      "query": "연금계좌 전환은 어떻게 하나요?",
+      "expected_behavior": "clarification"
+    },
+    {
+      "id": "midyear_retirement_policy",
+      "query": "연도 중 퇴사한 근로자는 연말정산을 언제 해야 하나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "out_of_scope_weather",
+      "query": "서울의 내일 날씨와 미세먼지를 알려 주세요.",
+      "expected_behavior": "no_answer"
+    }
+  ]
+}
