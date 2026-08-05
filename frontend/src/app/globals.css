@@ -578,3 +578,113 @@ input[type='range'].sim-range--secondary::-webkit-slider-thumb:hover {
   100% { transform: scale(1); }
 }
 .num-pop { animation: numPop 0.2s ease; }
+
+/* ── Chat source cards ── */
+.source-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(199,196,216,0.25);
+}
+
+.source-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+}
+
+.source-card-list {
+  display: grid;
+  gap: 8px;
+}
+
+.source-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(248,249,255,0.92);
+  border: 1px solid rgba(199,196,216,0.45);
+}
+
+.source-card-topline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.source-chip,
+.source-score {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-on-surface-variant);
+  background: rgba(229,238,255,0.9);
+}
+
+.source-chip--primary {
+  color: var(--color-primary);
+  background: rgba(53,37,205,0.08);
+}
+
+.source-score {
+  margin-left: auto;
+  color: var(--color-secondary);
+  background: rgba(108,248,187,0.18);
+}
+
+.source-title {
+  color: var(--color-on-surface);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.source-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px 10px;
+  color: var(--color-on-surface-variant);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.source-meta-label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--color-outline);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.source-link-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.source-link-row a,
+.source-link-row span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-link-row a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
