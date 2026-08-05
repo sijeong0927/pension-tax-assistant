@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "description": "RAG 하이브리드 검색의 조문·수치·일반·범위 밖 질의 고정 평가셋",
+  "cases": [
+    {
+      "id": "legal_pension_tax_credit",
+      "kind": "legal_reference",
+      "query": "소득세법 제59조의3에 따른 연금계좌 세액공제 한도는?",
+      "expected_document_ids": [
+        "pdf_page_183_chunk_00"
+      ]
+    },
+    {
+      "id": "numeric_pension_limits",
+      "kind": "numeric",
+      "query": "연금저축 600만 원, IRP 포함 900만 원 한도는 어떻게 적용되나요?",
+      "expected_document_ids": [
+        "pdf_page_183_chunk_00"
+      ]
+    },
+    {
+      "id": "numeric_basic_deduction",
+      "kind": "numeric",
+      "query": "부양가족 기본공제 150만 원과 소득금액 100만 원 요건은?",
+      "expected_document_ids": [
+        "pdf_page_004_chunk_02",
+        "pdf_page_114_chunk_00"
+      ]
+    },
+    {
+      "id": "numeric_monthly_rent",
+      "kind": "numeric",
+      "query": "총급여 8천만 원 이하 월세액 세액공제의 주택 요건과 1천만 원 한도는?",
+      "expected_document_ids": [
+        "pdf_page_220_chunk_00"
+      ]
+    },
+    {
+      "id": "numeric_medical_expense",
+      "kind": "numeric",
+      "query": "의료비 세액공제는 총급여 3% 초과분과 15% 공제율을 어떻게 적용하나요?",
+      "expected_document_ids": [
+        "pdf_page_191_chunk_00"
+      ]
+    },
+    {
+      "id": "numeric_credit_card",
+      "kind": "numeric",
+      "query": "신용카드 사용액이 총급여 25%를 초과할 때 소득공제율과 한도는?",
+      "expected_document_ids": [
+        "pdf_page_150_chunk_00",
+        "pdf_page_156_chunk_00"
+      ]
+    },
+    {
+      "id": "general_midyear_retirement",
+      "kind": "general",
+      "query": "연도 중 퇴사한 근로자는 언제 연말정산하나요?",
+      "expected_document_ids": [
+        "pdf_page_103_chunk_00",
+        "pdf_page_103_chunk_01",
+        "pdf_page_106_chunk_00"
+      ]
+    },
+    {
+      "id": "out_of_scope_weather",
+      "kind": "out_of_scope",
+      "query": "서울의 내일 날씨와 미세먼지를 알려 주세요.",
+      "expected_document_ids": []
+    },
+    {
+      "id": "out_of_scope_programming",
+      "kind": "out_of_scope",
+      "query": "파이썬에서 리스트를 정렬하는 방법을 알려 주세요.",
+      "expected_document_ids": []
+    }
+  ]
+}

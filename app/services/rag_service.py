@@ -12,6 +12,12 @@ from app.core.prompts import (
 )
 from app.core.vector_db import get_vector_collection
 from app.models.rag import RAGAnswer, RAGSource
+from app.services.hybrid_search import (
+    CohereReranker,
+    HybridSearchError,
+    Reranker,
+    hybrid_search,
+)
 from app.services.knowledge_base import (
     KnowledgeBaseReport,
     load_knowledge_base,
@@ -77,11 +83,19 @@ class RAGService:
         openai_client: Any | None = None,
         chroma_client: Any | None = None,
         collection: Any | None = None,
+        reranker: Reranker | None = None,
     ) -> None:
         self.settings = settings or get_rag_settings()
         self._openai_client = openai_client
         self._chroma_client = chroma_client
         self._collection = collection
+        self._reranker = reranker
+        if self._reranker is None and self.settings.cohere_api_key:
+            self._reranker = CohereReranker(
+                api_key=self.settings.cohere_api_key,
+                model=self.settings.cohere_rerank_model,
+                timeout_seconds=self.settings.cohere_timeout_seconds,
+            )
 
     def _get_openai_client(self) -> Any:
         if self._openai_client is None:
@@ -207,39 +221,34 @@ class RAGService:
             raise ValueError(
                 f"top_k는 1 이상 {MAX_RETRIEVAL_DOCUMENTS} 이하이어야 합니다."
             )
-        result_count = min(requested_top_k, document_count)
+        candidate_count = min(
+            max(self.settings.rag_candidate_k, requested_top_k),
+            document_count,
+        )
 
         query_embedding = self._embed([normalized_question])[0]
         try:
-            result = collection.query(
-                query_embeddings=[query_embedding],
-                n_results=result_count,
-                include=["documents", "metadatas", "distances"],
+            ranked_candidates = hybrid_search(
+                collection,
+                query=normalized_question,
+                query_embedding=query_embedding,
+                candidate_k=candidate_count,
+                top_k=requested_top_k,
+                min_relevance_score=self.settings.rag_min_relevance_score,
+                reranker=self._reranker,
             )
-        except Exception as exc:
+        except HybridSearchError as exc:
             raise RAGServiceError("ChromaDB 문서 검색에 실패했습니다.") from exc
 
-        ids = (result.get("ids") or [[]])[0]
-        documents = (result.get("documents") or [[]])[0]
-        metadatas = (result.get("metadatas") or [[]])[0]
-        distances = (result.get("distances") or [[]])[0]
-
         retrieved: list[RetrievedDocument] = []
-        for document_id, text, metadata, distance in zip(
-            ids,
-            documents,
-            metadatas,
-            distances,
-        ):
-            metadata = metadata or {}
-            relevance_score = max(0.0, min(1.0, 1.0 - float(distance)))
-            if relevance_score < self.settings.rag_min_relevance_score:
-                continue
+        for candidate in ranked_candidates:
+            document = candidate.document
+            metadata = document.metadata
             retrieved.append(
                 RetrievedDocument(
-                    document_id=str(document_id),
-                    text=str(text or ""),
-                    title=str(metadata.get("title") or document_id),
+                    document_id=document.document_id,
+                    text=document.text,
+                    title=str(metadata.get("title") or document.document_id),
                     category=str(metadata.get("category") or "미분류"),
                     source_title=str(metadata.get("source_title") or ""),
                     source_url=str(metadata.get("source_url") or ""),
@@ -251,7 +260,7 @@ class RAGService:
                     provenance_verified=bool(
                         metadata.get("provenance_verified", False)
                     ),
-                    relevance_score=relevance_score,
+                    relevance_score=candidate.relevance_score,
                 )
             )
         return retrieved
