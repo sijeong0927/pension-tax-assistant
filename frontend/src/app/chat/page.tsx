@@ -186,6 +186,8 @@ export default function ChatPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // 'chat' | 'history' | 'savings'
+  const [sidebarView, setSidebarView] = useState<'chat' | 'history' | 'savings'>('chat');
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -293,6 +295,8 @@ export default function ChatPage() {
     setSessionId(nextSessionId);             // useEffect가 자동으로 히스토리 재조회
     setMessages([]);                         // sessionId 변경 → useEffect에서 갱신됨
     setInput('');
+    setSidebarView('chat');
+    setSidebarOpen(false);
   }, []);
 
   return (
@@ -353,28 +357,46 @@ export default function ChatPage() {
           {/* Nav */}
           <nav className="flex-1 space-y-1 overflow-y-auto">
             {[
-              { icon: 'add_comment', label: '새 상담', active: true, onClick: handleReset },
-              { icon: 'receipt_long', label: '상담 기록', active: false },
-              { icon: 'savings', label: '저장된 절세 정보', active: false },
-            ].map(({ icon, label, active, onClick }) => (
-              <button
-                key={label}
-                onClick={onClick}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors text-sm font-medium"
-                style={{
-                  background: active ? 'var(--color-primary)' : 'transparent',
-                  color: active ? 'white' : 'var(--color-on-surface-variant)',
-                }}
-              >
-                <span
-                  className="material-symbols-outlined text-xl"
-                  style={active ? { fontVariationSettings: "'FILL' 1" } : {}}
+              {
+                icon: 'add_comment',
+                label: '새 상담',
+                view: 'chat' as const,
+                onClick: handleReset,
+              },
+              {
+                icon: 'receipt_long',
+                label: '상담 기록',
+                view: 'history' as const,
+                onClick: () => { setSidebarView('history'); setSidebarOpen(false); },
+              },
+              {
+                icon: 'savings',
+                label: '저장된 절세 정보',
+                view: 'savings' as const,
+                onClick: () => { setSidebarView('savings'); setSidebarOpen(false); },
+              },
+            ].map(({ icon, label, view, onClick }) => {
+              const active = sidebarView === view;
+              return (
+                <button
+                  key={label}
+                  onClick={onClick}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors text-sm font-medium"
+                  style={{
+                    background: active ? 'var(--color-primary)' : 'transparent',
+                    color: active ? 'white' : 'var(--color-on-surface-variant)',
+                  }}
                 >
-                  {icon}
-                </span>
-                {label}
-              </button>
-            ))}
+                  <span
+                    className="material-symbols-outlined text-xl"
+                    style={active ? { fontVariationSettings: "'FILL' 1" } : {}}
+                  >
+                    {icon}
+                  </span>
+                  {label}
+                </button>
+              );
+            })}
           </nav>
 
           {/* Bottom nav */}
@@ -430,7 +452,7 @@ export default function ChatPage() {
               className="font-bold text-xl hidden md:block"
               style={{ fontFamily: "'Hanken Grotesk', sans-serif", color: 'var(--color-primary)' }}
             >
-              AI 상담
+              {sidebarView === 'history' ? '상담 기록' : sidebarView === 'savings' ? '저장된 절세 정보' : 'AI 상담'}
             </span>
           </div>
 
@@ -462,7 +484,145 @@ export default function ChatPage() {
           </div>
         </header>
 
-        {/* Chat area */}
+        {/* ── 상담 기록 패널 ── */}
+        {sidebarView === 'history' && (
+          <main className="flex-1 overflow-y-auto px-4 md:px-10 py-8">
+            <div className="max-w-2xl mx-auto">
+              <div className="flex items-center gap-2 mb-6">
+                <span
+                  className="material-symbols-outlined"
+                  style={{ color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}
+                >
+                  receipt_long
+                </span>
+                <h2 className="font-bold text-lg" style={{ fontFamily: "'Hanken Grotesk', sans-serif", color: 'var(--color-on-surface)' }}>
+                  현재 세션 대화 기록
+                </h2>
+              </div>
+              {messages.length === 0 || (messages.length === 1 && messages[0].id === 'welcome') ? (
+                <div className="text-center py-16" style={{ color: 'var(--color-on-surface-variant)' }}>
+                  <span className="material-symbols-outlined text-5xl block mb-3" style={{ color: 'var(--color-outline-variant)' }}>chat_bubble</span>
+                  <p className="font-medium">아직 대화 기록이 없어요.</p>
+                  <p className="text-sm mt-1">새 상담를 시작하면 이곳에 표시됩니다.</p>
+                  <button
+                    onClick={handleReset}
+                    className="mt-6 px-6 py-2.5 rounded-full text-sm font-semibold transition-colors"
+                    style={{ background: 'var(--color-primary)', color: 'white' }}
+                  >
+                    새 상담 시작하기
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {messages
+                    .filter((m) => !m.isTyping && m.id !== 'welcome')
+                    .map((msg) => (
+                      <div
+                        key={msg.id}
+                        className="flex gap-3"
+                        style={{ justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
+                      >
+                        {msg.role === 'ai' && (
+                          <div
+                            className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center border"
+                            style={{ background: 'white', borderColor: 'rgba(199,196,216,0.3)' }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+                          </div>
+                        )}
+                        <div
+                          className="max-w-[78%] p-3 rounded-2xl text-sm leading-relaxed"
+                          style={{
+                            background: msg.role === 'user' ? 'var(--color-primary)' : 'white',
+                            color: msg.role === 'user' ? 'white' : 'var(--color-on-background)',
+                            border: msg.role === 'ai' ? '1px solid rgba(199,196,216,0.2)' : 'none',
+                            borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                            whiteSpace: 'pre-wrap',
+                          }}
+                        >
+                          {msg.text.length > 200 ? `${msg.text.slice(0, 200)}…` : msg.text}
+                        </div>
+                      </div>
+                    ))}
+                  <p className="text-center text-xs mt-6" style={{ color: 'var(--color-outline)' }}>
+                    세션 ID: {sessionId}
+                  </p>
+                </div>
+              )}
+            </div>
+          </main>
+        )}
+
+        {/* ── 저장된 절세 정보 패널 ── */}
+        {sidebarView === 'savings' && (
+          <main className="flex-1 overflow-y-auto px-4 md:px-10 py-8">
+            <div className="max-w-2xl mx-auto">
+              <div className="flex items-center gap-2 mb-6">
+                <span
+                  className="material-symbols-outlined"
+                  style={{ color: 'var(--color-secondary)', fontVariationSettings: "'FILL' 1" }}
+                >
+                  savings
+                </span>
+                <h2 className="font-bold text-lg" style={{ fontFamily: "'Hanken Grotesk', sans-serif", color: 'var(--color-on-surface)' }}>
+                  나의 절세 정보
+                </h2>
+              </div>
+
+              {/* 세액공제 요약 카드 */}
+              <div
+                className="p-5 rounded-2xl mb-4"
+                style={{ background: 'linear-gradient(135deg, rgba(53,37,205,0.08), rgba(0,108,73,0.06))', border: '1px solid rgba(199,196,216,0.3)' }}
+              >
+                <p className="font-semibold text-sm mb-3" style={{ color: 'var(--color-on-surface-variant)' }}>현재 세액공제 트레이주열 요약</p>
+                {[
+                  { label: '연금저축 한도', value: '600만원', chip: '16.5%' },
+                  { label: 'IRP 포함 합산 한도', value: '900만원', chip: '13.2% ~' },
+                  { label: '연간 최대 환급액', value: '최대 148.5만원', chip: '5,500만원 이하' },
+                ].map(({ label, value, chip }) => (
+                  <div key={label} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid rgba(199,196,216,0.15)' }}>
+                    <span className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>{label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm" style={{ color: 'var(--color-on-surface)' }}>{value}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(53,37,205,0.1)', color: 'var(--color-primary)' }}>{chip}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 진단 CTA */}
+              <div
+                className="p-5 rounded-2xl mb-4"
+                style={{ background: 'white', border: '1px solid rgba(199,196,216,0.25)', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(0,108,73,0.08)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--color-secondary)', fontVariationSettings: "'FILL' 1" }}>calculate</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm" style={{ color: 'var(--color-on-surface)' }}>실시간 시뮬레이터로 정확한 수치 확인</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>총급여와 납입액을 슬라이더로 직접 조정하며 예상 세액공제액을 확인하세요.</p>
+                    <Link
+                      href="/diagnose"
+                      className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-full text-xs font-semibold transition-colors"
+                      style={{ background: 'var(--color-secondary)', color: 'white' }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>query_stats</span>
+                      진단 시뮬레이터 열기
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-center" style={{ color: 'var(--color-outline)', lineHeight: 1.6 }}>
+                실제 세액공제액은 결정세액 및 다른 공제 항목에 따라 달라질 수 있습니다. 중요한 결정 전 세무 전문가와 상담하세요.
+              </p>
+            </div>
+          </main>
+        )}
+
+        {/* Chat area (sidebarView === 'chat'일 때만 표시) */}
+        {sidebarView === 'chat' && (
         <main
           className="flex-1 overflow-y-auto relative"
           style={{ paddingBottom: '160px' }}
@@ -545,8 +705,10 @@ export default function ChatPage() {
             <div ref={chatEndRef} />
           </div>
         </main>
+        )}  {/* end sidebarView === 'chat' */}
 
-        {/* ── Input Area ── */}
+        {/* ── Input Area (chat 뷰에서만 표시) ── */}
+        {sidebarView === 'chat' && (
         <div
           className="absolute bottom-0 left-0 right-0 z-20"
           style={{
@@ -639,6 +801,7 @@ export default function ChatPage() {
             </p>
           </div>
         </div>
+        )}  {/* end sidebarView === 'chat' input area */}
       </div>
 
       {/* Global animations */}
