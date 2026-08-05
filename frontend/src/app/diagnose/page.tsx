@@ -4,6 +4,16 @@ import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Footer from '@/components/Footer';
+import {
+  PENSION_SAVINGS_MAX,
+  PENSION_STEP,
+  SALARY_MAX,
+  SALARY_STEP,
+  SALARY_THRESHOLD,
+  TOTAL_PENSION_ACCOUNT_MAX,
+  clampIrpToCombinedLimit,
+  getSliderFillPercent,
+} from '@/lib/diagnoseSimulator';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type SalaryRange = 'over' | 'under' | null;
@@ -455,17 +465,6 @@ function Step2({
 }
 
 // ── Step 3: 결과 리포트 + 시뮬레이터 ─────────────────────────────────────────
-const SALARY_MAX = 150_000_000;
-const SALARY_THRESHOLD = 55_000_000;
-const PENSION_MAX = 6_000_000;
-const TOTAL_PENSION_MAX = 9_000_000;
-const PENSION_STEP = 500_000;
-const SALARY_STEP = 1_000_000;
-
-function sliderFill(value: number, min: number, max: number) {
-  return `${((value - min) / (max - min)) * 100}%`;
-}
-
 function SimSlider({
   label,
   value,
@@ -507,7 +506,7 @@ function SimSlider({
         max={max}
         step={step}
         value={value}
-        style={{ '--fill': sliderFill(value, min, max) } as React.CSSProperties}
+        style={{ '--fill': getSliderFillPercent(value, min, max) } as React.CSSProperties}
         onChange={(e) => onChange(Number(e.target.value))}
       />
       <div className="flex justify-between text-xs" style={{ color: 'rgba(70,69,85,0.45)' }}>
@@ -574,15 +573,14 @@ function Step3({
       controller.abort();
     };
   }, [salary, pension, irp]);
-
-  // IRP 최대값 = 9,000,000 - 연금저축 납입액 (합산 한도)
-  const irpMax = Math.min(TOTAL_PENSION_MAX - Math.min(pension, PENSION_MAX), TOTAL_PENSION_MAX);
-
   const handlePensionChange = (v: number) => {
     setPension(v);
-    // IRP가 합산 한도를 초과하면 자동 조정
-    const newIrpMax = Math.min(TOTAL_PENSION_MAX - Math.min(v, PENSION_MAX), TOTAL_PENSION_MAX);
-    if (irp > newIrpMax) setIrp(newIrpMax);
+    const nextIrp = clampIrpToCombinedLimit(v, irp);
+    if (irp !== nextIrp) setIrp(nextIrp);
+  };
+
+  const handleIrpChange = (v: number) => {
+    setIrp(clampIrpToCombinedLimit(pension, v));
   };
 
   return (
@@ -644,23 +642,26 @@ function Step3({
             label="연금저축 납입액"
             value={pension}
             min={0}
-            max={PENSION_MAX}
+            max={PENSION_SAVINGS_MAX}
             step={PENSION_STEP}
             onChange={handlePensionChange}
             formatVal={formatWon}
             hint="한도 600만원"
           />
           <SimSlider
-            label="IRP 납입액"
+            label="IRP(퇴직연금) 납입액"
             value={irp}
             min={0}
-            max={irpMax}
+            max={TOTAL_PENSION_ACCOUNT_MAX}
             step={PENSION_STEP}
             colorClass="secondary"
-            onChange={setIrp}
+            onChange={handleIrpChange}
             formatVal={formatWon}
-            hint={`합산 한도 900만원 (잔여 ${formatWon(irpMax)})`}
           />
+          <p className="text-xs leading-relaxed" style={{ color: 'rgba(70,69,85,0.62)' }}>
+            IRP 막대는 IRP 납입액을 900만원 고정 척도로 표시하며, 공제 대상 금액은
+            연금저축을 포함한 합산 한도 안에서 계산됩니다.
+          </p>
         </div>
 
         {/* ── 핵심 세액공제 효과 카드 (슬라이더 연동) ── */}
