@@ -1,16 +1,27 @@
 ﻿from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 
 
+INCOME_NO_BENEFIT = "no_benefit"
 INCOME_UNDER_55M = "under_55m"
 INCOME_OVER_55M = "over_55m"
 
+NO_BENEFIT_SALARY_THRESHOLD = 15_000_000
 SALARY_THRESHOLD = 55_000_000
+DEDUCTION_RATE_NONE = Decimal("0")
 DEDUCTION_RATE_UNDER_55M = Decimal("0.165")
 DEDUCTION_RATE_OVER_55M = Decimal("0.132")
 
 PENSION_SAVINGS_LIMIT = 6_000_000
 TOTAL_PENSION_LIMIT = 9_000_000
+
+TAX_LIABILITY_REFERENCE = (
+    (15_000_000, 0),
+    (20_000_000, 262_000),
+    (30_000_000, 516_000),
+    (40_000_000, 928_000),
+    (55_000_000, 2_217_000),
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +42,8 @@ class TaxCreditDiagnosis:
     deductible_pension_savings: int
     deductible_irp: int
     deductible_amount: int
+    gross_tax_credit: int
+    estimated_tax_liability: int
     estimated_refund: int
     remaining_limit: int
     additional_refund_available: int
@@ -49,6 +62,9 @@ def _validate_won_amount(name: str, amount: int) -> None:
 def determine_income_range(total_salary: int) -> str:
     _validate_won_amount("total_salary", total_salary)
 
+    if total_salary <= NO_BENEFIT_SALARY_THRESHOLD:
+        return INCOME_NO_BENEFIT
+
     if total_salary <= SALARY_THRESHOLD:
         return INCOME_UNDER_55M
 
@@ -57,6 +73,9 @@ def determine_income_range(total_salary: int) -> str:
 
 def get_deduction_rate(total_salary: int) -> Decimal:
     income_range = determine_income_range(total_salary)
+
+    if income_range == INCOME_NO_BENEFIT:
+        return DEDUCTION_RATE_NONE
 
     if income_range == INCOME_UNDER_55M:
         return DEDUCTION_RATE_UNDER_55M
@@ -68,20 +87,43 @@ def _round_won(amount: Decimal) -> int:
     return int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
+def estimate_tax_liability(total_salary: int) -> int:
+    _validate_won_amount("total_salary", total_salary)
+
+    if total_salary <= NO_BENEFIT_SALARY_THRESHOLD:
+        return 0
+
+    for (lower_salary, lower_tax), (upper_salary, upper_tax) in zip(
+        TAX_LIABILITY_REFERENCE,
+        TAX_LIABILITY_REFERENCE[1:],
+    ):
+        if total_salary <= upper_salary:
+            salary_position = Decimal(total_salary - lower_salary) / Decimal(
+                upper_salary - lower_salary
+            )
+            estimated_tax = Decimal(lower_tax) + (
+                Decimal(upper_tax - lower_tax) * salary_position
+            )
+            return _round_won(estimated_tax)
+
+    return TAX_LIABILITY_REFERENCE[-1][1]
+
+
 def _calculate_recommended_additional_allocation(
     pension_savings_paid: int,
     irp_paid: int,
+    target_deductible_amount: int,
 ) -> RecommendedAllocation:
     deductible_pension_savings = min(pension_savings_paid, PENSION_SAVINGS_LIMIT)
     deductible_total = min(deductible_pension_savings + irp_paid, TOTAL_PENSION_LIMIT)
-    remaining_limit = TOTAL_PENSION_LIMIT - deductible_total
+    remaining_target = max(target_deductible_amount - deductible_total, 0)
 
-    if remaining_limit <= 0:
+    if remaining_target <= 0:
         return RecommendedAllocation(pension_savings=0, irp=0)
 
     pension_savings_room = max(PENSION_SAVINGS_LIMIT - pension_savings_paid, 0)
-    recommended_pension_savings = min(pension_savings_room, remaining_limit)
-    recommended_irp = remaining_limit - recommended_pension_savings
+    recommended_pension_savings = min(pension_savings_room, remaining_target)
+    recommended_irp = remaining_target - recommended_pension_savings
 
     return RecommendedAllocation(
         pension_savings=recommended_pension_savings,
@@ -93,7 +135,14 @@ def _build_message(
     deduction_rate: Decimal,
     deductible_amount: int,
     remaining_limit: int,
+    estimated_tax_liability: int,
 ) -> str:
+    if estimated_tax_liability == 0:
+        return (
+            "총급여 1,500만 원 이하 구간은 추정 결정세액이 0원에 가까워 "
+            "연금계좌 세액공제 실익이 없습니다."
+        )
+
     refund_rate_percent = deduction_rate * Decimal("100")
 
     if remaining_limit == 0:
@@ -125,17 +174,36 @@ def calculate_tax_credit_diagnosis(
 
     income_range = determine_income_range(total_salary)
     deduction_rate = get_deduction_rate(total_salary)
+    estimated_tax_liability = estimate_tax_liability(total_salary)
 
     deductible_pension_savings = min(pension_savings_paid, PENSION_SAVINGS_LIMIT)
     remaining_after_pension_savings = TOTAL_PENSION_LIMIT - deductible_pension_savings
     deductible_irp = min(irp_paid, max(remaining_after_pension_savings, 0))
     deductible_amount = deductible_pension_savings + deductible_irp
-    estimated_refund = _round_won(Decimal(deductible_amount) * deduction_rate)
+    gross_tax_credit = _round_won(Decimal(deductible_amount) * deduction_rate)
+    estimated_refund = min(gross_tax_credit, estimated_tax_liability)
     remaining_limit = max(TOTAL_PENSION_LIMIT - deductible_amount, 0)
-    additional_refund_available = _round_won(Decimal(remaining_limit) * deduction_rate)
+    remaining_tax_liability = max(estimated_tax_liability - estimated_refund, 0)
+    additional_refund_available = min(
+        _round_won(Decimal(remaining_limit) * deduction_rate),
+        remaining_tax_liability,
+    )
+    if deduction_rate == 0:
+        target_deductible_amount = 0
+    else:
+        target_deductible_amount = min(
+            int(
+                (Decimal(estimated_tax_liability) / deduction_rate).quantize(
+                    Decimal("1"),
+                    rounding=ROUND_CEILING,
+                )
+            ),
+            TOTAL_PENSION_LIMIT,
+        )
     recommended_allocation = _calculate_recommended_additional_allocation(
         pension_savings_paid=pension_savings_paid,
         irp_paid=irp_paid,
+        target_deductible_amount=target_deductible_amount,
     )
 
     return TaxCreditDiagnosis(
@@ -149,6 +217,8 @@ def calculate_tax_credit_diagnosis(
         deductible_pension_savings=deductible_pension_savings,
         deductible_irp=deductible_irp,
         deductible_amount=deductible_amount,
+        gross_tax_credit=gross_tax_credit,
+        estimated_tax_liability=estimated_tax_liability,
         estimated_refund=estimated_refund,
         remaining_limit=remaining_limit,
         additional_refund_available=additional_refund_available,
@@ -157,5 +227,6 @@ def calculate_tax_credit_diagnosis(
             deduction_rate=deduction_rate,
             deductible_amount=deductible_amount,
             remaining_limit=remaining_limit,
+            estimated_tax_liability=estimated_tax_liability,
         ),
     )

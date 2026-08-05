@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Footer from '@/components/Footer';
@@ -26,6 +26,8 @@ interface DiagnosisResult {
   deductible_pension_savings: number;
   deductible_irp: number;
   deductible_amount: number;
+  gross_tax_credit: number;
+  estimated_tax_liability: number;
   estimated_refund: number;
   remaining_limit: number;
   additional_refund_available: number;
@@ -460,18 +462,6 @@ const TOTAL_PENSION_MAX = 9_000_000;
 const PENSION_STEP = 500_000;
 const SALARY_STEP = 1_000_000;
 
-function calcSim(salary: number, pension: number, irp: number) {
-  const rate = salary <= SALARY_THRESHOLD ? 0.165 : 0.132;
-  const deductPension = Math.min(pension, PENSION_MAX);
-  const irpRoom = Math.max(TOTAL_PENSION_MAX - deductPension, 0);
-  const deductIrp = Math.min(irp, irpRoom);
-  const totalDeduct = deductPension + deductIrp;
-  const taxCreditEffect = Math.round(totalDeduct * rate);
-  const remaining = Math.max(TOTAL_PENSION_MAX - totalDeduct, 0);
-  const additionalTaxCreditEffect = Math.round(remaining * rate);
-  return { rate, deductPension, deductIrp, totalDeduct, taxCreditEffect, remaining, additionalTaxCreditEffect };
-}
-
 function sliderFill(value: number, min: number, max: number) {
   return `${((value - min) / (max - min)) * 100}%`;
 }
@@ -546,9 +536,44 @@ function Step3({
   );
   const [pension, setPension] = useState<number>(result.pension_savings_paid);
   const [irp, setIrp] = useState<number>(result.irp_paid);
+  const [sim, setSim] = useState<DiagnosisResult>(result);
+  const [simError, setSimError] = useState<string | null>(null);
 
-  const sim = calcSim(salary, pension, irp);
-  const isHighRate = sim.rate > 0.14;
+  const isNoBenefit = sim.income_range === 'no_benefit';
+  const isHighRate = sim.deduction_rate > 0.14;
+  const recommendedAdditional =
+    sim.recommended_additional_allocation.pension_savings +
+    sim.recommended_additional_allocation.irp;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/v1/tax/diagnose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            total_salary: salary,
+            pension_savings: pension,
+            irp,
+          }),
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('계산 결과를 불러오지 못했습니다.');
+        const json = await response.json();
+        setSim(json.data);
+        setSimError(null);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setSimError(error instanceof Error ? error.message : '계산 중 오류가 발생했습니다.');
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [salary, pension, irp]);
 
   // IRP 최대값 = 9,000,000 - 연금저축 납입액 (합산 한도)
   const irpMax = Math.min(TOTAL_PENSION_MAX - Math.min(pension, PENSION_MAX), TOTAL_PENSION_MAX);
@@ -607,7 +632,13 @@ function Step3({
             step={SALARY_STEP}
             onChange={setSalary}
             formatVal={(v) => `${(v / 10_000).toLocaleString('ko-KR')}만원`}
-            hint={salary <= SALARY_THRESHOLD ? '우대 공제율 16.5%' : '기본 공제율 13.2%'}
+            hint={
+              salary <= 15_000_000
+                ? '결정세액이 적어 세액공제 실익이 없습니다'
+                : salary <= SALARY_THRESHOLD
+                  ? '우대 공제율 16.5%'
+                  : '기본 공제율 13.2%'
+            }
           />
           <SimSlider
             label="연금저축 납입액"
@@ -641,35 +672,47 @@ function Step3({
             >
               local_taxi
             </span>
-            {isHighRate ? '우대 공제율 16.5% 적용' : '기본 공제율 13.2% 적용'}
+            {isNoBenefit
+              ? '세액공제 실현 가능성 안내'
+              : isHighRate
+                ? '우대 공제율 16.5% 적용'
+                : '기본 공제율 13.2% 적용'}
           </div>
-          <p className="text-sm font-medium opacity-80 mb-1">적용 세액공제율</p>
-          <p
-            className="font-bold"
-            style={{
-              fontFamily: "'Hanken Grotesk', sans-serif",
-              fontSize: '56px',
-              lineHeight: 1.1,
-              letterSpacing: '-0.03em',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            {(sim.rate * 100).toFixed(1)}%
-          </p>
-          <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-            <p className="text-sm opacity-75 mb-1">예상 세액 공제 효과</p>
-            <p
-              className="font-bold"
-              style={{
-                fontFamily: "'Hanken Grotesk', sans-serif",
-                fontSize: '28px',
-                letterSpacing: '-0.02em',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {formatWon(sim.taxCreditEffect)}
+          {isNoBenefit ? (
+            <p className="text-lg font-bold leading-relaxed">
+              현재 소득 기준으로는 세액공제 실현 가능성이 낮습니다
             </p>
-          </div>
+          ) : (
+            <>
+              <p className="text-sm font-medium opacity-80 mb-1">적용 세액공제율</p>
+              <p
+                className="font-bold"
+                style={{
+                  fontFamily: "'Hanken Grotesk', sans-serif",
+                  fontSize: '56px',
+                  lineHeight: 1.1,
+                  letterSpacing: '-0.03em',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {(sim.deduction_rate * 100).toFixed(1)}%
+              </p>
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                <p className="text-sm opacity-75 mb-1">예상 세액 공제 효과</p>
+                <p
+                  className="font-bold"
+                  style={{
+                    fontFamily: "'Hanken Grotesk', sans-serif",
+                    fontSize: '28px',
+                    letterSpacing: '-0.02em',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {formatWon(sim.estimated_refund)}
+                </p>
+              </div>
+            </>
+          )}
         </div>
 
         {/* ── 납입 상세 (슬라이더 연동) ── */}
@@ -682,7 +725,7 @@ function Step3({
               공제 대상 연금저축
             </span>
             <span className="font-semibold" style={{ color: 'var(--color-on-surface)', fontSize: '15px' }}>
-              {formatWon(sim.deductPension)}
+              {formatWon(sim.deductible_pension_savings)}
             </span>
           </div>
           <div className="result-metric">
@@ -690,7 +733,7 @@ function Step3({
               공제 대상 IRP
             </span>
             <span className="font-semibold" style={{ color: 'var(--color-on-surface)', fontSize: '15px' }}>
-              {formatWon(sim.deductIrp)}
+              {formatWon(sim.deductible_irp)}
             </span>
           </div>
           <div className="result-metric">
@@ -698,13 +741,13 @@ function Step3({
               총 공제 대상 납입액
             </span>
             <span className="font-bold" style={{ color: 'var(--color-primary)', fontSize: '16px' }}>
-              {formatWon(sim.totalDeduct)}
+              {formatWon(sim.deductible_amount)}
             </span>
           </div>
         </div>
 
         {/* ── 추가 납입 여력 ── */}
-        {sim.remaining > 0 && (
+        {sim.additional_refund_available > 0 && (
           <div
             className="result-card"
             style={{ borderColor: 'rgba(108,248,187,0.4)', background: 'rgba(108,248,187,0.04)' }}
@@ -726,15 +769,21 @@ function Step3({
                   추가 납입 여력이 있어요!
                 </p>
                 <p className="text-sm mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>
-                  {formatWon(sim.remaining)} 더 납입하면{' '}
+                  {formatWon(recommendedAdditional)} 더 납입하면{' '}
                   <strong style={{ color: 'var(--color-on-surface)' }}>
-                    {formatWon(sim.additionalTaxCreditEffect)}
+                    {formatWon(sim.additional_refund_available)}
                   </strong>{' '}
                   예상 세액 공제 효과가 추가됩니다.
                 </p>
               </div>
             </div>
           </div>
+        )}
+
+        {simError && (
+          <p className="text-center text-sm" style={{ color: '#ba1a1a' }}>
+            {simError}
+          </p>
         )}
 
         {/* 면책 */}
