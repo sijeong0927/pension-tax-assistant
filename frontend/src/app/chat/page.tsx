@@ -66,7 +66,6 @@ function historyToMessages(history: ChatMessage[]): Message[] {
 }
 
 function CitationReference({ source, index }: { source: Source; index: number }) {
-  const title = source.title || source.source_title || source.document_id || '출처 제목 미등록';
   const sourceName = source.source_title || '공식 출처 정보 미등록';
   const citation = `[문서 ${index + 1}]`;
   const triggerClassName = 'font-semibold underline decoration-dotted underline-offset-2 cursor-help rounded focus:outline-none focus:ring-2 focus:ring-offset-1';
@@ -82,7 +81,7 @@ function CitationReference({ source, index }: { source: Source; index: number })
       rel="noreferrer"
       className={triggerClassName}
       style={triggerStyle}
-      aria-label={`${citation} 출처 열기: ${title}`}
+      aria-label={`${citation} 공식 출처 열기: ${sourceName}`}
     >
       {citation}
     </a>
@@ -91,7 +90,7 @@ function CitationReference({ source, index }: { source: Source; index: number })
       tabIndex={0}
       className={triggerClassName}
       style={triggerStyle}
-      aria-label={`${citation} 출처: ${title}`}
+      aria-label={`${citation} 공식 출처: ${sourceName}`}
     >
       {citation}
     </span>
@@ -110,8 +109,7 @@ function CitationReference({ source, index }: { source: Source; index: number })
         }}
       >
         <span className="block font-semibold">문서 {index + 1}</span>
-        <span className="mt-1 block">{title}</span>
-        <span className="mt-1 block opacity-80">출처: {sourceName}</span>
+        <span className="mt-1 block">공식 출처: {sourceName}</span>
         {source.effective_date && (
           <span className="mt-1 block opacity-80">기준일: {source.effective_date}</span>
         )}
@@ -203,8 +201,8 @@ function SourceChip({ source, index }: { source: Source; index: number }) {
   const relevance = typeof source.relevance_score === 'number'
     ? `${Math.round(Math.max(0, Math.min(1, source.relevance_score)) * 100)}%`
     : null;
-  const title = source.title || source.source_title || source.document_id || `참조 ${index + 1}`;
-  const shortTitle = title.length > 30 ? `${title.slice(0, 30)}…` : title;
+  const sourceName = source.source_title || '공식 출처 정보 미등록';
+  const shortSourceName = sourceName.length > 30 ? `${sourceName.slice(0, 30)}…` : sourceName;
 
   const content = (
     <div
@@ -225,7 +223,7 @@ function SourceChip({ source, index }: { source: Source; index: number }) {
       <span className="font-medium flex-shrink-0" style={{ color: 'var(--color-primary)' }}>
         {index + 1}
       </span>
-      <span className="truncate" style={{ minWidth: 0 }}>{shortTitle}</span>
+      <span className="truncate" style={{ minWidth: 0 }}>{shortSourceName}</span>
       {relevance && (
         <span
           className="flex-shrink-0 px-1.5 py-0.5 rounded-full font-semibold"
