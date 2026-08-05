@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Footer from '@/components/Footer';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -36,13 +37,6 @@ interface DiagnosisResult {
 const formatWon = (n: number) =>
   n === 0 ? '0원' : `${n.toLocaleString('ko-KR')}원`;
 
-const parseWon = (s: string): number => {
-  const parsed = parseInt(s.replace(/[^0-9]/g, ''), 10);
-  return isNaN(parsed) ? 0 : parsed;
-};
-
-const rateLabel = (rate: number) =>
-  `${(rate * 100).toFixed(1)}%`;
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -472,10 +466,10 @@ function calcSim(salary: number, pension: number, irp: number) {
   const irpRoom = Math.max(TOTAL_PENSION_MAX - deductPension, 0);
   const deductIrp = Math.min(irp, irpRoom);
   const totalDeduct = deductPension + deductIrp;
-  const refund = Math.round(totalDeduct * rate);
+  const taxCreditEffect = Math.round(totalDeduct * rate);
   const remaining = Math.max(TOTAL_PENSION_MAX - totalDeduct, 0);
-  const additionalRefund = Math.round(remaining * rate);
-  return { rate, deductPension, deductIrp, totalDeduct, refund, remaining, additionalRefund };
+  const additionalTaxCreditEffect = Math.round(remaining * rate);
+  return { rate, deductPension, deductIrp, totalDeduct, taxCreditEffect, remaining, additionalTaxCreditEffect };
 }
 
 function sliderFill(value: number, min: number, max: number) {
@@ -613,7 +607,7 @@ function Step3({
             step={SALARY_STEP}
             onChange={setSalary}
             formatVal={(v) => `${(v / 10_000).toLocaleString('ko-KR')}만원`}
-            hint={salary <= SALARY_THRESHOLD ? '▶ 공제율 16.5%' : '▶ 공제율 13.2%'}
+            hint={salary <= SALARY_THRESHOLD ? '우대 공제율 16.5%' : '기본 공제율 13.2%'}
           />
           <SimSlider
             label="연금저축 납입액"
@@ -638,7 +632,7 @@ function Step3({
           />
         </div>
 
-        {/* ── 핵심 환급 카드 (슬라이더 연동) ── */}
+        {/* ── 핵심 세액공제 효과 카드 (슬라이더 연동) ── */}
         <div className="result-highlight">
           <div className="result-badge">
             <span
@@ -647,7 +641,7 @@ function Step3({
             >
               local_taxi
             </span>
-            {isHighRate ? '우대 공제율 적용' : '기본 공제율 적용'}
+            {isHighRate ? '우대 공제율 16.5% 적용' : '기본 공제율 13.2% 적용'}
           </div>
           <p className="text-sm font-medium opacity-80 mb-1">적용 세액공제율</p>
           <p
@@ -663,7 +657,7 @@ function Step3({
             {(sim.rate * 100).toFixed(1)}%
           </p>
           <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-            <p className="text-sm opacity-75 mb-1">예상 세액공제 효과</p>
+            <p className="text-sm opacity-75 mb-1">예상 세액 공제 효과</p>
             <p
               className="font-bold"
               style={{
@@ -673,7 +667,7 @@ function Step3({
                 transition: 'all 0.15s ease',
               }}
             >
-              {formatWon(sim.refund)}
+              {formatWon(sim.taxCreditEffect)}
             </p>
           </div>
         </div>
@@ -734,9 +728,9 @@ function Step3({
                 <p className="text-sm mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>
                   {formatWon(sim.remaining)} 더 납입하면{' '}
                   <strong style={{ color: 'var(--color-on-surface)' }}>
-                    {formatWon(sim.additionalRefund)}
+                    {formatWon(sim.additionalTaxCreditEffect)}
                   </strong>{' '}
-                  추가 공제 가능합니다.
+                  예상 세액 공제 효과가 추가됩니다.
                 </p>
               </div>
             </div>
@@ -783,7 +777,7 @@ function LoadingScreen() {
           절세 경로 탐색 중…
         </p>
         <p className="text-sm mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>
-          최적의 세액공제 경로를 계산하고 있어요.
+          예상 세액 공제 효과를 계산하고 있어요.
         </p>
       </div>
     </div>
@@ -800,6 +794,7 @@ const initialForm: FormData = {
 };
 
 export default function DiagnosePage() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [direction, setDirection] = useState<Direction>('forward');
   const [formData, setFormData] = useState<FormData>(initialForm);
@@ -823,8 +818,8 @@ export default function DiagnosePage() {
   }, [step]);
 
   const handleClose = useCallback(() => {
-    window.location.href = '/';
-  }, []);
+    router.push('/');
+  }, [router]);
 
   const handleSalarySelect = useCallback(
     (range: SalaryRange) => {
@@ -842,7 +837,7 @@ export default function DiagnosePage() {
     if (!formData.salaryRange) return;
 
     const totalSalary = formData.salaryRange === 'over' ? 70_000_000 : 40_000_000;
-    // 계좌 보유 시 한도액 기준으로 최대 세액공제 효과 계산
+    // 계좌 보유 시 한도액 기준으로 최대 예상 세액 공제 효과 계산
     const pensionSavings = formData.hasPensionSavings ? 6_000_000 : 0;
     const irp = formData.hasIRP ? 3_000_000 : 0;
 
