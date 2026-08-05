@@ -152,10 +152,10 @@ def test_index_knowledge_base_upserts_all_documents(tmp_path: Path) -> None:
 
     result = service.index_knowledge_base()
 
-    assert result.indexed_count == 31
+    assert result.indexed_count == 42
     assert collection.upsert_payload is not None
-    assert len(collection.upsert_payload["ids"]) == 31
-    assert len(collection.upsert_payload["embeddings"]) == 31
+    assert len(collection.upsert_payload["ids"]) == 42
+    assert len(collection.upsert_payload["embeddings"]) == 42
 
 
 def test_new_faq_query_keeps_corrected_public_pension_context(tmp_path: Path) -> None:
@@ -190,6 +190,38 @@ def test_new_faq_query_keeps_corrected_public_pension_context(tmp_path: Path) ->
     assert "과세대상 공적연금소득" in openai_client.responses.calls[0]["input"]
 
 
+def test_general_faq_returns_preindexed_pdf_chunk_ids(tmp_path: Path) -> None:
+    report = load_knowledge_base(
+        Path(__file__).resolve().parents[1] / "app/data/tax_faq.json"
+    )
+    document = next(
+        item for item in report.documents if item.document_id == "faq_41"
+    )
+
+    class FaqCollection(FakeCollection):
+        def query(self, **_: Any) -> dict[str, Any]:
+            return {
+                "ids": [[document.document_id]],
+                "documents": [[document.text]],
+                "metadatas": [[document.to_metadata()]],
+                "distances": [[0.1]],
+            }
+
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=FakeOpenAI(),
+        collection=FaqCollection(),
+    )
+
+    answer = service.answer_question("연도 중 퇴사하면 언제 정산하나요?")
+
+    assert answer.sources[0].source_chunk_ids == [
+        "pdf_page_103_chunk_00",
+        "pdf_page_103_chunk_01",
+        "pdf_page_106_chunk_00",
+    ]
+
+
 def test_index_document_limit_prevents_openai_call(tmp_path: Path) -> None:
     openai_client = FakeOpenAI()
     settings = replace(make_settings(tmp_path), rag_max_index_documents=20)
@@ -214,7 +246,7 @@ def test_chroma_round_trip_with_fake_openai(tmp_path: Path) -> None:
     indexing_result = service.index_knowledge_base()
     retrieved = service.retrieve("연금계좌 세액공제 가이드")
 
-    assert indexing_result.indexed_count == 31
+    assert indexing_result.indexed_count == 42
     assert retrieved
     assert retrieved[0].document_id == "guide_00"
     assert (tmp_path / ".chroma").exists()

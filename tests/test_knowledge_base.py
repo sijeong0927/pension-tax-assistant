@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_load_current_knowledge_base_has_verified_provenance() -> None:
     report = load_knowledge_base(PROJECT_ROOT / "app/data/tax_faq.json")
 
-    assert len(report.documents) == 31
+    assert len(report.documents) == 42
     assert report.documents[0].document_id == "guide_00"
     assert report.warnings == ()
     assert all(
@@ -31,7 +31,17 @@ def test_strict_provenance_accepts_current_knowledge_base() -> None:
         strict_provenance=True,
     )
 
-    assert len(report.documents) == 31
+    assert len(report.documents) == 42
+
+
+def test_general_year_end_faqs_reference_preindexed_nts_chunks() -> None:
+    report = load_knowledge_base(PROJECT_ROOT / "app/data/tax_faq.json")
+    documents = {document.document_id: document for document in report.documents}
+
+    for number in range(31, 42):
+        document = documents[f"faq_{number}"]
+        assert document.source_url.startswith("https://www.nts.go.kr/")
+        assert document.source_chunk_ids.startswith("pdf_page_")
 
 
 def test_corrected_faqs_use_official_sources_and_safe_tax_wording() -> None:

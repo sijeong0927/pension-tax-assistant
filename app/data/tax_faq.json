@@ -1,5 +1,5 @@
 {
-  "description": "국세청 연금저축 및 IRP 세액공제 가이드 및 FAQ",
+  "description": "연금저축·IRP 세액공제 가이드 및 연말정산 상담 FAQ",
   "last_updated": "2026-08-04",
   "source_title": "국세청 연금소득 안내",
   "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=7885&mi=6605",
@@ -227,6 +227,127 @@
       "answer": "ISA는 신규 가입일이 속한 과세기간의 직전 3개 과세기간 중 1회 이상 금융소득종합과세 대상자였다면 신규 가입이 제한됩니다. 반면 연금저축과 IRP는 금융소득종합과세 대상자라는 이유만으로 가입이나 연금계좌 납입 세액공제가 제한되지는 않습니다. 다만 실제 과세는 계좌 재원과 다른 소득에 따라 달라질 수 있으므로 수령 시점에는 과세 방식을 확인해야 합니다.",
       "source_title": "조세특례제한법 개인종합자산관리계좌 과세특례",
       "source_url": "https://www.law.go.kr/LSW/lsLinkCommonInfo.do?chrClsCd=010202&lsJoLnkSeq=1026637971",
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_31",
+      "category": "부양가족·인적공제",
+      "question": "2025년 귀속 연말정산에서 부양가족 기본공제의 소득·나이 요건은 무엇인가요?",
+      "answer": "기본공제는 1명당 연 150만 원이며, 부양가족의 연간 소득금액 합계액이 100만 원 이하여야 합니다. 근로소득만 있는 경우에는 총급여 500만 원 이하를 적용합니다. 직계존속은 60세 이상, 직계비속과 동거입양자는 20세 이하, 형제자매는 20세 이하 또는 60세 이상이어야 하며 장애인은 나이 제한을 적용하지 않습니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_004_chunk_02", "pdf_page_114_chunk_00", "pdf_page_058_chunk_02"],
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_32",
+      "category": "부양가족·인적공제",
+      "question": "맞벌이 부부나 형제자매가 같은 부양가족을 중복으로 기본공제할 수 있나요?",
+      "answer": "같은 부양가족을 둘 이상이 중복으로 기본공제할 수 없습니다. 맞벌이 부부의 자녀는 부부 중 한 명만, 부모님은 형제자매 중 실제 부양한 한 명만 공제할 수 있습니다. 실제 부양한 사람이 둘 이상이면 직전 과세기간에 공제받은 사람 등 국세청 안내의 공제 순위에 따라 판단합니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_059_chunk_00", "pdf_page_059_chunk_01"],
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_33",
+      "category": "간소화 및 증빙",
+      "question": "연말정산 간소화서비스에서 조회되지 않는 자료는 어떻게 제출하나요?",
+      "answer": "간소화서비스에 제공되지 않는 증명서류는 근로자가 발급기관에서 직접 수집해 회사에 제출해야 합니다. 국세청 안내는 난임시술비와 취학 전 아동 학원비 등을 직접 수집이 필요한 대표 사례로 들고 있으며, 간소화자료 출력물 또는 전자파일과 직접 수집한 영수증을 함께 제출할 수 있습니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_047_chunk_01", "pdf_page_376_chunk_01", "pdf_page_412_chunk_00"],
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_34",
+      "category": "월세·주택자금",
+      "question": "2025년 귀속 월세액 세액공제의 주요 요건은 무엇인가요?",
+      "answer": "총급여 8천만 원 이하인 무주택 세대의 세대주 등 요건을 충족한 근로자가 국민주택규모 또는 기준시가 4억 원 이하의 주택을 임차해 지급한 월세액은 연 1천만 원 한도에서 세액공제를 검토할 수 있습니다. 주거용 오피스텔과 고시원도 안내된 요건을 충족하면 대상에 포함됩니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_220_chunk_00"],
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_35",
+      "category": "월세·주택자금",
+      "question": "주택임차차입금 원리금 상환액 소득공제의 주요 요건과 한도는 무엇인가요?",
+      "answer": "무주택 근로자가 국민주택규모 이하 주택을 임차하기 위해 요건을 갖춘 대출기관 등에서 차입하고 원리금을 상환하면 상환액의 40%를 공제할 수 있으며 주택마련저축과 합해 연 400만 원 한도를 적용합니다. 금융기관 차입금은 입주일과 전입일 중 빠른 날 전후 3개월 이내 차입하고 원칙적으로 임대인 계좌에 직접 입금되는 등 안내된 요건을 충족해야 합니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_026_chunk_00", "pdf_page_128_chunk_00"],
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_36",
+      "category": "의료비",
+      "question": "의료비 세액공제의 공제율과 기본 한도는 어떻게 되나요?",
+      "answer": "기본공제대상자를 위해 지급한 의료비 중 총급여액의 3%를 초과하는 금액을 기준으로 일반 의료비는 15%를 세액공제합니다. 미숙아·선천성이상아 의료비는 20%, 난임시술비는 30%가 적용됩니다. 일반 부양가족 의료비는 연 700만 원 한도가 적용되며 본인, 65세 이상인 사람, 6세 이하인 사람, 장애인 등 안내된 대상의 의료비는 별도 구분합니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_191_chunk_00"],
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_37",
+      "category": "교육비",
+      "question": "부양가족 교육비 세액공제의 대상과 한도는 어떻게 되나요?",
+      "answer": "근로자 본인의 공제대상 교육비는 전액을 대상으로 하며 대학원 교육비와 직업능력개발훈련시설 수강료도 포함될 수 있습니다. 기본공제대상자인 배우자·직계비속·형제자매 등의 교육비는 취학 전 아동과 초·중·고등학생은 1명당 연 300만 원, 대학생은 1명당 연 900만 원 한도입니다. 부양가족인 대학원생의 교육비는 공제대상이 아닙니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_196_chunk_00", "pdf_page_198_chunk_01"],
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_38",
+      "category": "기부금",
+      "question": "일반기부금 세액공제율은 어떻게 적용되나요?",
+      "answer": "국세청 신고안내에 따른 일반기부금 세액공제율은 1천만 원 이하분 15%, 1천만 원 초과분 30%입니다. 공제대상 단체와 기부금 유형별 한도 및 이월공제 여부가 다르므로 적격 기부금영수증과 근거 법령을 확인해야 합니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_024_chunk_00", "pdf_page_216_chunk_00"],
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_39",
+      "category": "신용카드",
+      "question": "신용카드 등 사용금액 소득공제는 언제 적용되나요?",
+      "answer": "연간 신용카드 등 사용금액 합계가 총급여액의 25%를 초과할 때 초과분에 결제수단과 사용처에 따른 15~40% 공제율을 적용합니다. 기본 공제한도는 총급여 7천만 원 이하는 300만 원, 7천만 원 초과는 250만 원이며 전통시장·대중교통·문화체육 사용분 등은 안내된 범위에서 추가한도를 적용할 수 있습니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_150_chunk_00", "pdf_page_156_chunk_00"],
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_40",
+      "category": "이직·복수 근로소득",
+      "question": "둘 이상의 근무지에서 받은 근로소득은 어떻게 연말정산하나요?",
+      "answer": "주된 근무지와 종된 근무지를 정하고 종된 근무지에서 근로소득 원천징수영수증을 발급받아 주된 근무지에 제출하면 주된 근무지에서 근로소득을 합산해 연말정산합니다. 합산하지 않고 각각 연말정산한 경우에는 다음 연도 5월까지 과세표준 확정신고를 해야 합니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_102_chunk_00", "pdf_page_102_chunk_01", "pdf_page_103_chunk_00"],
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-04"
+    },
+    {
+      "id": "faq_41",
+      "category": "이직·중도퇴사",
+      "question": "연도 중 퇴사한 근로자의 연말정산은 언제 하나요?",
+      "answer": "근로자가 연도 중 퇴직하면 회사는 퇴직하는 달의 근로소득을 지급할 때 연말정산합니다. 근로자는 그 급여를 받기 전에 소득·세액공제신고서와 해당 근무기간에 지출한 공제 영수증을 회사에 제출해야 합니다. 같은 해 재취업한 경우 종전 근무지 원천징수영수증을 현 근무지에 제출하면 두 근무지의 소득을 합산해 연말정산할 수 있습니다.",
+      "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "source_chunk_ids": ["pdf_page_103_chunk_00", "pdf_page_103_chunk_01", "pdf_page_106_chunk_00"],
       "effective_date": "2025-01-01",
       "last_verified": "2026-08-04"
     }

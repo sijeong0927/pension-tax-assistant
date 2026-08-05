@@ -46,6 +46,7 @@ class RetrievedDocument:
     source_url: str
     effective_date: str
     last_verified: str
+    source_chunk_ids: str
     provenance_verified: bool
     relevance_score: float
 
@@ -58,6 +59,11 @@ class RetrievedDocument:
             source_url=self.source_url or None,
             effective_date=self.effective_date or None,
             last_verified=self.last_verified or None,
+            source_chunk_ids=[
+                chunk_id
+                for chunk_id in self.source_chunk_ids.split(",")
+                if chunk_id
+            ],
             provenance_verified=self.provenance_verified,
             relevance_score=self.relevance_score,
         )
@@ -239,6 +245,9 @@ class RAGService:
                     source_url=str(metadata.get("source_url") or ""),
                     effective_date=str(metadata.get("effective_date") or ""),
                     last_verified=str(metadata.get("last_verified") or ""),
+                    source_chunk_ids=str(
+                        metadata.get("source_chunk_ids") or ""
+                    ),
                     provenance_verified=bool(
                         metadata.get("provenance_verified", False)
                     ),
@@ -298,6 +307,7 @@ class RAGService:
         for index, document in enumerate(documents, start=1):
             source = document.source_title or "출처 메타데이터 미등록"
             effective_date = document.effective_date or "기준일 미등록"
+            source_chunks = document.source_chunk_ids or "근거 청크 미등록"
             blocks.append(
                 "\n".join(
                     (
@@ -306,6 +316,7 @@ class RAGService:
                         f"분류: {document.category}",
                         f"출처: {source}",
                         f"기준일: {effective_date}",
+                        f"근거 청크: {source_chunks}",
                         f"내용: {document.text}",
                     )
                 )
