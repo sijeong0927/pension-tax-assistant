@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import Link from 'next/link';
-import { fetchChatHistory, sendQuery, fetchSessions, type ChatMessage, type SessionMeta } from '@/lib/api';
+import { fetchChatHistory, sendQuery, fetchSessions, deleteSession, type ChatMessage, type SessionMeta } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Source {
@@ -533,14 +533,35 @@ export default function ChatPage() {
                           setSessionId(sess.session_id);
                           setSidebarView('chat');
                         }}
-                        className="w-full text-left p-4 rounded-xl border transition-all"
+                        className="w-full text-left p-4 rounded-xl border transition-all relative group"
                         style={{
                           background: isCurrent ? 'rgba(53,37,205,0.05)' : 'white',
                           borderColor: isCurrent ? 'var(--color-primary)' : 'rgba(199,196,216,0.3)',
                           boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                         }}
                       >
-                        <div className="flex items-start justify-between gap-2">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (window.confirm('이 상담 기록을 삭제하시겠습니까?')) {
+                              const success = await deleteSession(sess.session_id);
+                              if (success) {
+                                if (isCurrent) {
+                                  // 현재 세션 삭제 시 새 상담으로 초기화
+                                  handleReset();
+                                } else {
+                                  fetchSessions().then(setSessionList);
+                                }
+                              }
+                            }
+                          }}
+                          className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-full transition-opacity hover:bg-red-50 text-red-400"
+                          title="상담 기록 삭제"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                        </button>
+
+                        <div className="flex items-start justify-between gap-2 pr-8">
                           <div className="flex items-center gap-2 min-w-0">
                             <span
                               className="material-symbols-outlined flex-shrink-0"

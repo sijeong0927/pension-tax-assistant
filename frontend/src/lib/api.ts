@@ -135,3 +135,18 @@ export async function fetchSessions(): Promise<SessionMeta[]> {
     return [];
   }
 }
+
+/**
+ * 특정 세션의 대화 내역 전체를 삭제합니다.
+ */
+export async function deleteSession(sessionId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/v1/chat/history/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+    });
+    return res.ok;
+  } catch (error) {
+    console.error('[deleteSession] 네트워크 오류:', error);
+    return false;
+  }
+}

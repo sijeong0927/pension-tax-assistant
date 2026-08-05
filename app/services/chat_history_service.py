@@ -83,3 +83,12 @@ class ChatHistoryService:
             })
             
         return sessions
+
+    @staticmethod
+    def delete_session(db: Session, session_id: str) -> bool:
+        """
+        특정 세션의 대화 이력을 모두 삭제합니다.
+        """
+        deleted_count = db.query(ChatHistory).filter(ChatHistory.session_id == session_id).delete()
+        db.commit()
+        return deleted_count > 0

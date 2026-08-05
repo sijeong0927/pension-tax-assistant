@@ -110,3 +110,19 @@ def get_chat_sessions(db: Session = Depends(get_db)):
         "success": True,
         "sessions": sessions
     }
+
+@router.delete("/chat/history/{session_id}")
+def delete_chat_session(session_id: str, db: Session = Depends(get_db)):
+    """
+    특정 세션의 대화 내역 전체 삭제 API
+    """
+    deleted = ChatHistoryService.delete_session(db, session_id)
+    if not deleted:
+        # 이미 삭제되었거나 없는 경우도 성공으로 처리할 수 있으나, 명확한 응답을 위해 404 가능성 고려
+        # 하지만 단순 구현을 위해 True 반환
+        pass
+    
+    return {
+        "success": True,
+        "message": f"Session {session_id} deleted successfully."
+    }
