@@ -3,10 +3,12 @@
 import pytest
 
 from app.services.tax_credit_service import (
+    INCOME_NO_BENEFIT,
     INCOME_OVER_55M,
     INCOME_UNDER_55M,
     calculate_tax_credit_diagnosis,
     determine_income_range,
+    estimate_tax_liability,
     get_deduction_rate,
 )
 
@@ -25,6 +27,64 @@ def test_deduction_rate_under_55m():
 
 def test_deduction_rate_over_55m():
     assert get_deduction_rate(55_000_001) == Decimal("0.132")
+
+
+def test_salary_at_15m_has_no_tax_credit_benefit():
+    result = calculate_tax_credit_diagnosis(
+        total_salary=15_000_000,
+        pension_savings_paid=6_000_000,
+        irp_paid=3_000_000,
+    )
+
+    assert result.income_range == INCOME_NO_BENEFIT
+    assert result.deduction_rate == Decimal("0")
+    assert result.estimated_tax_liability == 0
+    assert result.gross_tax_credit == 0
+    assert result.estimated_refund == 0
+    assert result.additional_refund_available == 0
+    assert result.recommended_additional_allocation.pension_savings == 0
+    assert result.recommended_additional_allocation.irp == 0
+    assert "세액공제 실익이 없습니다" in result.message
+
+
+@pytest.mark.parametrize(
+    ("total_salary", "expected_tax_liability"),
+    [
+        (20_000_000, 262_000),
+        (30_000_000, 516_000),
+        (40_000_000, 928_000),
+        (55_000_000, 2_217_000),
+    ],
+)
+def test_estimated_tax_liability_matches_specification_reference(
+    total_salary,
+    expected_tax_liability,
+):
+    assert estimate_tax_liability(total_salary) == expected_tax_liability
+
+
+def test_refund_is_capped_by_estimated_tax_liability():
+    result = calculate_tax_credit_diagnosis(
+        total_salary=20_000_000,
+        pension_savings_paid=6_000_000,
+        irp_paid=3_000_000,
+    )
+
+    assert result.gross_tax_credit == 1_485_000
+    assert result.estimated_tax_liability == 262_000
+    assert result.estimated_refund == 262_000
+
+
+def test_recommendation_targets_minimum_payment_for_estimated_tax_liability():
+    result = calculate_tax_credit_diagnosis(
+        total_salary=20_000_000,
+        pension_savings_paid=0,
+        irp_paid=0,
+    )
+
+    assert result.additional_refund_available == 262_000
+    assert result.recommended_additional_allocation.pension_savings == 1_587_879
+    assert result.recommended_additional_allocation.irp == 0
 
 
 def test_pension_savings_limit_is_capped_at_6m():
