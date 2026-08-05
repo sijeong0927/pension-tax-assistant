@@ -1,229 +1,82 @@
 # 연금 연말정산 환급금 수색대
 
-> "총급여 구간과 보유 계좌"만 선택하면 연금계좌 세액공제 여력을 진단하고,
-> 다음 절세 행동과 관련 개념을 대화형으로 안내하는 AI 절세 비서
-> RAG를 활용한 연말정산 챗봇과 함께 구현 
+> 총급여와 연금계좌 납입 현황으로 예상 세액공제 효과를 계산하고,
+> 공식 자료 기반 RAG 챗봇으로 다음 절세 질문까지 이어 주는 핀테크 MVP
 
-**팀 노후지키미**가 개발 중인 연말정산 고객 Q&A 챗봇 MVP입니다.
+프론트엔드에서는 **절세택시**라는 이름을 사용합니다. 세액공제 계산은 테스트 가능한
+Python 서비스가 담당하고, LLM은 공식 자료 검색과 조건 설명에만 사용합니다.
 
-## 프로젝트 소개
+## 한눈에 보기
 
-연말정산을 준비하는 많은 사용자는 세법 용어가 어렵고 정보가 여러 곳에 흩어져 있어, 무엇을 확인하고 질문해야 하는지부터 막막함을 느낍니다.
+> 코드 기준: 2026-08-05 `main` 커밋 `9593a03`
 
-이 프로젝트는 주민등록번호나 계좌번호 같은 민감정보 없이 아래 두 가지 정보만으로 사용자의 연금 세액공제 상태를 빠르게 진단합니다.
+| 영역 | 현재 구현 |
+| --- | --- |
+| 진단 | 총급여, 연금저축, IRP 납입액 기반 결정론적 계산 |
+| 시뮬레이터 | 납입액 조정, 계좌별 한도, 예상 세액공제 효과 |
+| RAG | ChromaDB Vector + 한국어 BM25 + 로컬 RRF 재정렬 |
+| 챗봇 | SSE 스트리밍, 공식 출처, 추천 질문 3개 |
+| 대화 이력 | SQLite 세션 목록·조회·삭제와 최근 대화 문맥 |
+| 인증·저장 | 이메일/JWT 인증과 사용자별 최신 진단 결과 저장 |
+| 품질 평가 | 검색 평가 9건, 답변 품질 평가 20건 |
 
-1. 총급여가 5,500만 원 이하인지
-2. 연금계좌와 ISA를 보유하고 있는지
+현재 진단 화면은 총급여 구간과 연금저축·IRP 보유 여부를 입력받습니다. ISA는 RAG
+상담 범위에는 포함되지만 결정론적 진단 API 입력에는 아직 연결되지 않았습니다.
 
-진단 결과에서는 예상 세액공제액과 남은 납입 여력을 보여주고, 사용자의 상황에 맞는 추천 질문을 제공해 자연스럽게 연말정산 AI 챗봇 상담으로 이어지도록 설계합니다.
-
-## 핵심 UX 전략
-
-이 서비스의 핵심은 계산 결과만 보여주는 것이 아니라, 
-**간이 진단 리포트로 사용자의 호기심을 이끌어 대화창에서 실제 상황을 더 이야기하도록 돕는 것**입니다.
-
-1. **진단으로 시작**: 두 가지 선택만으로 빠르게 나의 공제율과 연금계좌 상태를 확인합니다.
-2. **숫자로 이해**: 슬라이더를 움직이며 추가 납입액에 따른 예상 세액공제 효과를 확인합니다.
-3. **대화로 확장**: 진단 결과에 맞는 추천 질문을 선택하거나 월세, 부양가족, 이직 등 실제 상황을 자유롭게 질문합니다.
-4. **근거와 행동 제시**: 챗봇은 적용 조건, 계산 과정, 필요한 서류와 공식 출처를 함께 안내합니다.
-
-사용자는 세법 용어를 미리 알지 못해도 진단에서 상담까지 자연스럽게 이동하고, “나에게 맞춘 전담 상담”처럼 이어지는 경험을 얻을 수 있습니다.
-
-## 해결하려는 문제
-
-- **질문 진입장벽**: 세법을 잘 모르면 챗봇에 무엇을 물어봐야 하는지도 알기 어렵습니다.
-- **정보의 파편화**: 연금저축·IRP·ISA 관련 정보가 개정이 되다보니, 옛날 정보들이 혼재되어 있습니다.
-- **개인화 부족**: 일반적인 설명을 해주는 연말정산 AI 챗봇은 존재합니다. 하지만 이를 통해선 내가 얼마를 더 납입하고 어떤 혜택을 기대할 수 있는지 알기 어렵습니다.
-- **민감정보 입력 부담**: 정교한 계산을 위해 개인정보나 금융정보를 과도하게 요구하는 서비스는 이용 장벽이 높습니다.
-
-## 핵심 사용자 흐름
+## 사용자 흐름
 
 ```mermaid
 flowchart LR
-    A["총급여 구간 선택"] --> B["보유 계좌 선택"]
-    B --> C["8가지 유형별 간이 진단"]
-    C --> D["납입액 조정 및 예상 세액공제액 확인"]
-    D --> E["맞춤 처방전과 추천 질문"]
-    E --> F["RAG 기반 AI 절세 상담"]
+    A["총급여 구간 선택"] --> B["연금저축·IRP 보유 선택"]
+    B --> C["세액공제 진단"]
+    C --> D["납입액 시뮬레이션"]
+    D --> E{"로그인"}
+    E -->|"예"| F["진단 결과 저장"]
+    E -->|"아니요"| G["바로 상담"]
+    F --> G
+    G --> H["RAG 근거 검색"]
+    H --> I["SSE 답변·공식 출처·추천 질문"]
 ```
 
-### 1. 두 가지 정보 입력
+로그인하지 않아도 진단과 챗봇을 이용할 수 있습니다. 진단 결과를 계정에 저장하려면
+로그인이 필요합니다.
 
-| 입력 | 코드 | 선택지 |
-| --- | --- | --- |
-| 총급여 구간 | `Q1_salary` | `UNDER_55M` / `OVER_55M` |
-| 보유 계좌 | `Q2_account` | `BOTH` / `PENSION_ONLY` / `ISA_ONLY` / `NONE` |
+## 계산 기준
 
-### 2. 유형별 간이 진단
+계산은 `app/services/tax_credit_service.py`에서 처리합니다.
 
-| 총급여 | 보유 계좌 | 적용 예상 공제 효과율¹ | 핵심 안내 |
-| --- | --- | ---: | --- |
-| 5,500만 원 이하 | 연금계좌 + ISA | 16.5% | 연금계좌 납입 여력과 ISA 만기자금 전환 혜택 안내 |
-| 5,500만 원 이하 | 연금계좌만 | 16.5% | 연금저축·IRP 합산 한도와 예상 세액공제액 안내 |
-| 5,500만 원 이하 | ISA만 | 16.5% | ISA 자체는 연금계좌 세액공제 대상이 아니며, 만기자금 전환 조건 안내 |
-| 5,500만 원 이하 | 계좌 없음 | 16.5% | 연금계좌 신규 개설 시 기대 가능한 혜택 안내 |
-
-| 5,500만 원 초과 | 연금계좌 + ISA | 13.2% | 연금계좌 납입 여력과 ISA 만기자금 전환 혜택 안내 |
-| 5,500만 원 초과 | 연금계좌만 | 13.2% | 연금저축·IRP 합산 한도와 예상 세액공제액 안내 |
-| 5,500만 원 초과 | ISA만 | 13.2% | ISA 자체는 연금계좌 세액공제 대상이 아니며, 만기자금 전환 조건 안 |
-| 5,500만 원 초과 | 계좌 없음 | 13.2% | 연금계좌를 통한 절세·노후 준비 시작 방법 안내 |
-
-¹ 소득세 세액공제율 15%·12%에 지방소득세 효과를 포함해 일반적으로 안내되는 16.5%·13.2%를 사용합니다.
-
-### 3. 예상 세액공제액 계산
-
-2026년 8월 현재 프로젝트가 적용하려는 기본 원칙은 다음과 같습니다.
+| 현재 엔진의 총급여 구간 | 예상 공제 효과율 |
+| --- | ---: |
+| 1,500만 원 이하 | 0% |
+| 1,500만 원 초과 ~ 5,500만 원 이하 | 16.5% |
+| 5,500만 원 초과 | 13.2% |
 
 - 연금저축 세액공제 대상 납입 한도: 연 600만 원
-- IRP 등 퇴직연금을 포함한 연금계좌 합산 한도: 연 900만 원
-- 총급여 5,500만 원 이하: 최대 예상 공제 효과율 16.5%
-- 총급여 5,500만 원 초과: 최대 예상 공제 효과율 13.2%
-- ISA 만기자금을 연금계좌로 전환한 해에는 전환액의 10%, 최대 300만 원까지 세액공제 대상 납입 한도가 추가될 수 있음
+- IRP를 포함한 연금계좌 합산 한도: 연 900만 원
+- 예상 세액공제액: `공제대상 납입액 × 예상 공제 효과율`
+- 예상 환급액: `min(예상 세액공제액, 내부 추정 결정세액)`
 
-기본 계산 개념은 아래와 같습니다.
+`estimated_tax_liability`는 UI 시뮬레이션을 위한 내부 추정치입니다. 예상 세액공제액과
+예상 환급액은 실제 신고 결과나 최종 환급액을 의미하지 않습니다.
 
-```text
-예상 추가 세액공제액
-= 세액공제 대상 추가 납입액 × 적용 예상 공제 효과율
+## 지식 검색
+
+지식베이스에는 가이드 1개, FAQ 59개와 2025 연말정산 공식 가이드 PDF가 포함됩니다.
+각 문서는 공식 출처명, URL, 기준일과 검증일을 관리합니다.
+
+```mermaid
+flowchart LR
+    Q["질문"] --> V["Vector 검색"]
+    Q --> B["BM25 검색"]
+    V --> R["로컬 RRF 재정렬"]
+    B --> R
+    R --> G{"관련 근거 존재"}
+    G -->|"예"| L["근거 기반 답변"]
+    G -->|"아니요"| N["근거 부족 안내"]
 ```
 
-연금계좌 기본 한도 900만 원을 모두 활용한다고 가정하면 예상 최대 공제 효과는 각각 148만 5천 원과 118만 8천 원입니다. 실제 세액공제액과 최종 환급액은 사용자의 산출세액, 다른 공제 항목, 납입 계좌 종류 등에 따라 달라질 수 있습니다.
-
-### 4. 맞춤형 추천 질문
-
-진단이 끝나면 사용자가 다음 행동을 쉽게 선택할 수 있도록 상태별 Quick Reply를 제공합니다.
-
-- ISA만 보유: `ISA 만기자금을 연금계좌로 옮기면 혜택이 얼마나 늘어나나요?`
-- 연금계좌 보유: `연금저축과 IRP 중 어디에 먼저 납입하는 게 좋나요?`
-- 계좌 미보유: `연금저축펀드와 연금저축보험은 어떻게 다른가요?`
-- 공통 질문: `내 연금계좌에 올해 추가로 납입할 수 있는 금액은 얼마인가요?`
-
-## 챗봇 대화 시나리오
-
-연금 진단은 검증된 계산식으로 처리하고, 사용자가 추가로 설명한 생활 조건은 RAG 챗봇이 적용 요건과 공식 자료를 찾아 안내합니다.
-
-### 실제 상황을 추가하는 경우
-
-> **사용자**
->
-> “총급여 4천만 원이고 월세를 매달 60만 원 내고 있어요. 71세 부모님도 모시고 사는데 어떤 공제를 확인해야 하나요?”
->
-> **AI 절세 비서**
->
-> 입력한 조건으로 먼저 확인할 항목은 월세액 세액공제와 부모님 인적공제입니다.
->
-> **1. 월세액 세액공제**
->
-> 무주택 여부, 임대차계약과 주민등록 주소 일치 여부 등 법정 요건을 모두 충족한다고 가정하면 연간 월세 720만 원에 17%를 적용해 약 122만 4천 원의 세액공제 대상이 될 수 있습니다.
->
-> **2. 부모님 인적공제**
->
-> 부모님이 기본공제 소득요건을 충족한다면 기본공제 150만 원과 만 70세 이상 경로우대 추가공제 100만 원을 합해 총 250만 원의 소득공제를 검토할 수 있습니다. 이 금액은 환급액이 아니라 과세표준 계산 시 차감되는 소득공제액입니다.
->
-> **3. 확인할 서류**
->
-> 월세 공제를 위해 주민등록표등본, 임대차계약증서 사본, 계좌이체 영수증 등 지급 증빙을 준비하세요. 부모님 공제는 가족관계와 소득요건을 추가로 확인해야 합니다.
-
-### 예외 상황을 질문하는 경우
-
-> **사용자**
->
-> “올해 6월에 이직했는데 전 직장 원천징수영수증을 받지 못했으면 어떻게 하나요?”
->
-> **AI 절세 비서**
->
-> 우선 전 직장에 근로소득 원천징수영수증 발급을 요청하고, 현 직장의 연말정산 담당자에게 제출해 근로소득을 합산하는 방법을 안내합니다. 연말정산에 합산하지 못한 경우에는 홈택스에서 지급명세서를 확인한 뒤 다음 해 5월 종합소득세 신고로 정산하는 방법과 공식 안내 경로를 함께 제공합니다.
-
-> 위 대화는 UX와 답변 구조를 보여주기 위한 예시입니다. 실제 답변에서는 사용자의 추가 조건을 확인하고 기준연도 및 공식 출처를 표시합니다.
-
-## 주요 기능
-
-- 총급여 2구간 × 계좌 보유 상태 4종에 따른 8가지 진단 분기
-- 슬라이더 기반 추가 납입액 및 예상 세액공제액 계산
-- 사용자 유형별 맞춤 진단 리포트
-- 상황별 추천 질문 버튼 동적 생성
-- 공식 세법·연말정산 자료를 검색하는 RAG 기반 Q&A
-- 월세·부양가족·이직 등 확장 질문의 적용 조건과 필요 서류 안내
-- 주민등록번호·계좌번호를 받지 않는 최소 정보 입력 설계
-- 답변의 기준연도와 참고 출처 표시 및 대화 이력 재열람 시 출처 보존
-- 답변의 `[문서 n]` 인용 표시에 마우스를 올려 공식 출처·기준일 확인(외부 링크 미제공)
-
-## 구현 현황
-
-> 기준: 2026-08-05, 이 문서가 포함된 작업 브랜치
-
-| 영역 | 상태 |
-| --- | --- |
-| FastAPI 애플리케이션, CORS 및 루트 API | ✅ 구현 |
-| 연금·일반 연말정산 가이드 및 FAQ 59개 | ✅ 출처·근거 청크 메타데이터 포함 |
-| 연금계좌 세액공제 계산 서비스 및 단위 테스트 | ✅ 구현 |
-| `POST /api/v1/tax/diagnose` 진단 API | ✅ 구현 |
-| ChromaDB 임베딩·검색, OpenAI RAG 엔진 및 PDF 인덱서 | ✅ 구현 |
-| `POST /api/v1/chat/query` 챗봇 API | ✅ 구현 |
-| 답변 근거 충실도·문맥 관련성·환각 위험 오프라인 평가 | ✅ 구현 |
-| Next.js 랜딩·진단·리포트 UI | ✅ 구현 |
-| 챗봇 화면, 호출 제한 및 운영용 인증 | 🚧 개발 예정 |
-
-### 최신 반영 내용
-
-- `app/main.py`: FastAPI 앱, CORS, 진단·챗봇 라우터 등록과 `/` 루트 API
-- `app/api/v1/diagnose.py`: 총급여와 연금저축·IRP 납입액을 받는 세액공제 진단 API
-- `app/api/v1/chat.py`: 질문을 받아 `RAGService`를 호출하고 답변과 참조 문서를 반환하는 챗봇 API
-- `app/services/hybrid_search.py`: BM25·ChromaDB Vector 후보 결합과 결정론적 RRF 재정렬
-- `app/services/rag_service.py`: 하이브리드 검색, 관련성 기준 확인, OpenAI 답변 생성과 출처 반환
-- `app/services/answer_quality_evaluation.py`: 근거 충실도·관련성·환각 위험·정책 설명 범위를 평가하는 오프라인 LLM 심사
-- `app/core/`: 환경변수 설정, 공통 프롬프트와 ChromaDB 컬렉션 관리
-- `app/data/tax_faq.json`: 가이드 1개와 FAQ 59개, 각 문서의 출처·기준일·검증일·근거 청크 메타데이터
-- `app/services/tax_credit_service.py`: 총급여 5,500만 원 경계, 연금저축 600만 원·합산 900만 원 한도, 예상 세액공제액과 추가 납입 권장액 계산
-- `scripts/index_tax_faq.py`: 지식베이스 스키마·중복·출처 메타데이터를 검증한 뒤 FAQ를 수동 인덱싱
-- `scripts/index_pdf.py`: 국세청 PDF SHA-256 검증, 청크 분할, 임베딩 요청 한도와 원자적 교체를 처리하는 PDF 인덱서
-- `frontend/`: Next.js/React와 Tailwind CSS 기반 랜딩, 2단계 진단, 결과 리포트 UI 및 진단 API 연동
-- `tests/`: 계산 서비스, 지식베이스, RAG 서비스 및 PDF 인덱서를 검증하는 테스트
-
-FAQ는 엄격 모드(`--strict-provenance`)에서 출처 메타데이터 누락을 차단합니다. 다만 세법은
-개정될 수 있으므로 신규 FAQ·PDF를 넣을 때는 공식 출처, 적용 기준일과 예외 조건을 다시
-검증해야 합니다. 챗봇 HTTP 엔드포인트 전용 자동화 테스트와 호출 제한은 아직 추가되지
-않았습니다.
-
-## GitHub 이슈 및 PR
-
-> GitHub 조회 기준: 2026-08-05
-
-### 이슈
-
-| 이슈 | 작업 | 담당 | GitHub 상태 | 코드 반영 |
-| --- | --- | --- | --- | --- |
-| [#1](https://github.com/sijeong0927/pension-tax-assistant/issues/1) | FastAPI 기본 서버 및 CORS | `@sijeong0927` | Closed | `main` 반영 |
-| [#2](https://github.com/sijeong0927/pension-tax-assistant/issues/2) | 국세청 절세 가이드 및 FAQ 수집 | `@parkhanbyeol0110-del` | Closed | `main` 반영 |
-| [#3](https://github.com/sijeong0927/pension-tax-assistant/issues/3) | 소득·계좌 기준 진단 로직 | `@leeyoungeun942` | Closed | `main` 반영 |
-| [#4](https://github.com/sijeong0927/pension-tax-assistant/issues/4) | ChromaDB 및 RAG 기초 엔진 | `@kanghongsin` | Closed | PR #10, `main` 반영 |
-| [#5](https://github.com/sijeong0927/pension-tax-assistant/issues/5) | Next.js/React 초기 구성 | 미지정 | Open | PR #14, `main` 반영 |
-| [#12](https://github.com/sijeong0927/pension-tax-assistant/issues/12) (프로젝트 Issue #6) | 연금 세액공제 진단 API | `@sijeong0927` | Closed | PR #15, `main` 반영 |
-| [#13](https://github.com/sijeong0927/pension-tax-assistant/issues/13) (프로젝트 Issue #7) | RAG 챗봇 질문 답변 API | 미지정 | Closed | PR #17, `main` 반영 |
-| [#16](https://github.com/sijeong0927/pension-tax-assistant/issues/16) (프로젝트 Issue #8) | 연금 세제 지식·FAQ 데이터 추가 | 미지정 | Open | PR #20으로 코드 반영, 이슈는 미종료 |
-| [#22](https://github.com/sijeong0927/pension-tax-assistant/issues/22) | 일반 연말정산 FAQ 지식 데이터 확장 | 미지정 | Closed | PR #25, `main` 반영 |
-| [#28](https://github.com/sijeong0927/pension-tax-assistant/issues/28) (프로젝트 Issue #11) | RAG 하이브리드 검색 및 리랭킹 | 미지정 | Closed | PR #36, `main` 반영 |
-
-### 주요 기능 Pull Requests
-
-| PR | 작업 | GitHub 상태 | `main` 반영 |
-| --- | --- | --- | --- |
-| [#6](https://github.com/sijeong0927/pension-tax-assistant/pull/6) | 연금저축·IRP·ISA FAQ 데이터 추가 | Closed, 미병합 표시 | 커밋 `447a779`로 반영 |
-| [#7](https://github.com/sijeong0927/pension-tax-assistant/pull/7) | FastAPI 기본 서버 및 CORS 설정 | Closed, 미병합 표시 | 커밋 `48e4d27`로 반영 |
-| [#8](https://github.com/sijeong0927/pension-tax-assistant/pull/8) | 연금계좌 세액공제 진단 로직 구현 | Closed, 미병합 표시 | 커밋 `bbacacf`로 반영 |
-| [#9](https://github.com/sijeong0927/pension-tax-assistant/pull/9) | 진단 로직 리뷰 반영 및 검증 | Merged | 커밋 `e4998c3`로 반영 |
-| [#10](https://github.com/sijeong0927/pension-tax-assistant/pull/10) | ChromaDB RAG 챗봇 기초 엔진 | Merged | `main` 반영 |
-| [#11](https://github.com/sijeong0927/pension-tax-assistant/pull/11) | README 및 기여자 가이드 | Merged | `main` 반영 |
-| [#14](https://github.com/sijeong0927/pension-tax-assistant/pull/14) | Next.js/React 초기 구성 | Merged | 커밋 `98370f1`로 반영 |
-| [#15](https://github.com/sijeong0927/pension-tax-assistant/pull/15) | 연금 세액공제 진단 API | Merged | 커밋 `81a2274`로 반영 |
-| [#17](https://github.com/sijeong0927/pension-tax-assistant/pull/17) | RAG AI 챗봇 질문 답변 API | Merged | 커밋 `770dba3`로 반영 |
-| [#19](https://github.com/sijeong0927/pension-tax-assistant/pull/19) | RAG 챗봇 API README 반영 | Merged | `main` 반영 |
-| [#20](https://github.com/sijeong0927/pension-tax-assistant/pull/20) | 연금 세제 FAQ 추가 및 2025 연말정산 PDF 인덱서 | Merged | `main` 반영 |
-| [#21](https://github.com/sijeong0927/pension-tax-assistant/pull/21) | 프론트엔드 UI 수정 | Merged | `main` 반영 |
-
-PR #6·#7·#8은 GitHub에서 병합되지 않은 PR로 표시되지만 변경 내용은 `main`에 별도 병합 커밋으로 반영됐습니다. 더 이상 사용하지 않는 원격 작업 브랜치는 확인 후 정리해야 합니다.
-Issue #5와 #16은 GitHub에서 Open이지만 관련 구현은 `main`에 반영돼 있습니다.
-이슈 상태와 코드 상태가 다르므로 저장소 관리자가 확인 후 이슈를 정리해야 합니다.
+답변의 `[문서 n]` 인용은 같은 순번의 공식 출처 메타데이터와 연결됩니다. 검색 근거가
+부족하면 답변 생성을 중단합니다.
 
 ## 기술 구성
 
@@ -231,285 +84,66 @@ Issue #5와 #16은 GitHub에서 Open이지만 관련 구현은 `main`에 반영�
 | --- | --- |
 | 프론트엔드 | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
 | 백엔드 | Python, FastAPI, Pydantic, Uvicorn |
-| 계산 엔진 | `Decimal` 기반 세액공제 한도·예상 금액 계산 |
-| 지식 검색 | ChromaDB Vector + BM25 → 결정론적 RRF 재정렬 |
-| LLM | OpenAI Responses API, 기본 `gpt-4o-mini` |
-| 설정 관리 | python-dotenv 및 환경변수 |
+| 데이터 | SQLite, ChromaDB |
+| 검색 | Vector + BM25 + 결정론적 RRF |
+| LLM | OpenAI Responses/Chat Completions API |
+| 인증 | JWT, bcrypt |
 
-```mermaid
-flowchart TB
-    UI["진단 · 챗봇 UI"] --> API["FastAPI API<br/>/api/v1"]
-    API --> CALC["진단 및 계산 엔진<br/>세액공제 예상 금액"]
-    API --> RAG["RAG 서비스<br/>근거 검색 · 답변 생성"]
-    DATA["공식 세법 자료<br/>FAQ · PDF"] -->|"수동 검증 · 임베딩"| VECTOR["ChromaDB<br/>Vector 검색"]
-    DATA --> BM25["BM25<br/>조문 · 수치 검색"]
-    VECTOR --> RERANK["RRF · 법령 일치 재정렬"]
-    BM25 --> RERANK
-    RAG <-->|"재정렬된 근거 문서"| RERANK
-    RAG --> LLM["OpenAI Responses API<br/>기본 gpt-4o-mini"]
-```
+## 빠른 시작
 
-FAQ와 PDF는 출처를 검증한 뒤 수동으로 인덱싱합니다. 검색 근거가 부족하면 답변을 생성하지
-않으며, 세부 환경변수와 인덱싱 절차는 [RAG 문서](docs/rag.md)에서 확인할 수 있습니다.
-
-## 로컬 실행
-
-### 1. 가상환경 생성 및 활성화
+### 백엔드
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-### 2. 패키지 설치
-
-```powershell
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 Copy-Item .env.example .env
-```
-
-`.env`의 `OPENAI_API_KEY`에 로컬 개발용 키를 설정합니다. 실제 키는 코드, 문서,
-로그와 Git 커밋에 포함하지 않습니다. 전체 환경변수와 비용 제한 정책은
-[`docs/rag.md`](docs/rag.md)를 참고하세요. 검색 후보는 로컬 RRF 순위와 법령
-일치 신호로 재정렬합니다.
-
-### 3. RAG 지식베이스 적재
-
-```powershell
-python scripts/index_tax_faq.py
-```
-
-OpenAI 임베딩 API 비용이 발생하므로 FAQ 원문이 변경됐을 때만 수동으로 실행합니다.
-현재 FAQ는 공식 출처 메타데이터를 포함하며, 배포 전에는 `--strict-provenance`로
-누락 여부를 검증합니다.
-
-### 4. PDF 지식베이스 적재
-
-국세청 PDF를 ChromaDB에 적재하려면 OpenAI API 키를 설정한 뒤 아래 명령을 수동으로 실행합니다.
-기본 PDF는 SHA-256으로 국세청 원문 여부를 확인하며, 임의의 `--pdf` 파일은 검증된 출처로
-표시하지 않습니다. 이 명령은 임베딩 API 비용을 발생시킵니다.
-
-```powershell
-python scripts/index_pdf.py
-```
-
-청크 수(기본 1,000개)와 임베딩 요청 수(기본 50회)는 `RAG_MAX_PDF_DOCUMENTS`와
-`RAG_MAX_PDF_EMBEDDING_REQUESTS`로 제한됩니다. 자세한 RAG 설정은 [docs/rag.md](docs/rag.md)를
-참고하세요.
-
-### 5. 개발 서버 실행
-
-```powershell
 python -m uvicorn app.main:app --reload
 ```
 
-서버 실행 후 아래 주소에서 확인할 수 있습니다.
+- API: <http://127.0.0.1:8000/>
+- Swagger UI: <http://127.0.0.1:8000/docs>
 
-- 상태 확인: <http://127.0.0.1:8000/>
-- Swagger API 문서: <http://127.0.0.1:8000/docs>
-
-루트 API 응답은 다음과 같습니다.
-
-```json
-{
-  "message": "Pension Tax Assistant API is running!"
-}
-```
-
-### 6. 챗봇 API 호출
-
-Swagger UI 또는 `POST /api/v1/chat/query`로 질문을 전달합니다.
-
-요청:
-
-```json
-{
-  "question": "연금저축이랑 IRP 차이가 뭐야?"
-}
-```
-
-응답:
-
-```json
-{
-  "success": true,
-  "answer": "검색된 FAQ를 바탕으로 생성된 답변입니다.",
-  "sources": [
-    {
-      "document_id": "guide_00",
-      "title": "연금저축 vs IRP 주요 차이점 및 세액공제 가이드",
-      "category": "가이드",
-      "source_title": null,
-      "source_url": null,
-      "effective_date": null,
-      "last_verified": null,
-      "provenance_verified": false,
-      "relevance_score": 0.9
-    }
-  ]
-}
-```
-
-`answer`는 OpenAI가 검색 문서를 근거로 생성하므로 실제 문구와 `sources` 목록은
-질문과 검색 결과에 따라 달라집니다. 현재 API는 대화 이력이나 세션을 받지 않는
-단일 질문 방식이며, 공개 배포 전 호출 제한과 안전한 오류 응답을 보강해야 합니다.
-
-챗봇은 개인별 납입 가능액, 세액공제액, 최종 환급액을 계산하거나 확정하지 않습니다.
-개인 조건을 포함한 계산 요청에는 관련 정책을 설명한 뒤 진단 기능 또는 공식 채널로
-안내합니다.
-
-### 7. 답변 품질 평가
-
-아래 명령은 고정 평가셋으로 답변의 근거 충실도, 문맥 관련성, 환각 위험과 계산 범위
-준수를 점검합니다. 결과 표는 이 명령을 실행한 백엔드 터미널에 출력됩니다. FastAPI
-서버 실행 중에는 자동으로 실행되지 않습니다.
+RAG를 사용하려면 `.env`에 `OPENAI_API_KEY`와 개발용 `SECRET_KEY`를 설정하고
+지식베이스를 수동으로 적재합니다.
 
 ```powershell
-python scripts/evaluate_answer_quality.py --output .\tmp\answer_quality_report.json
+python scripts/index_tax_faq.py --strict-provenance
+python scripts/index_pdf.py
 ```
 
-실행에는 답변 생성·판정용 OpenAI API 호출 비용이 발생합니다. 자세한 기준과 출력
-형식은 [`docs/answer-quality-evaluation.md`](docs/answer-quality-evaluation.md)를 참고하세요.
+### 프론트엔드
 
-### 8. 테스트 실행
+새 PowerShell 터미널에서 실행합니다.
 
 ```powershell
-pytest
+Set-Location frontend
+npm ci
+$env:NEXT_PUBLIC_API_URL="http://127.0.0.1:8000"
+npm run dev
 ```
 
-## 현재 프로젝트 구조
+- 웹 UI: <http://localhost:3000/>
+- 진단: <http://localhost:3000/diagnose>
+- 챗봇: <http://localhost:3000/chat>
 
-```text
-pension-tax-assistant/
-├── .env.example
-├── .gitignore
-├── AGENTS.md
-├── README.md
-├── requirements.txt
-├── app/
-│   ├── main.py
-│   ├── api/
-│   │   └── v1/
-│   │       ├── chat.py
-│   │       └── diagnose.py
-│   ├── core/
-│   │   ├── config.py
-│   │   ├── prompts.py
-│   │   └── vector_db.py
-│   ├── data/
-│   │   ├── tax_faq.json
-│   │   └── pdfs/                # 로컬 원문 PDF 경로(PDF 파일은 Git 제외)
-│   ├── models/
-│   │   └── rag.py
-│   └── services/
-│       ├── hybrid_search.py
-│       ├── knowledge_base.py
-│       ├── rag_service.py
-│       └── tax_credit_service.py
-├── docs/
-│   └── rag.md
-├── scripts/
-│   ├── index_tax_faq.py
-│   └── index_pdf.py
-├── frontend/
-│   ├── package.json
-│   └── src/
-│       ├── app/
-│       │   ├── page.tsx
-│       │   └── diagnose/page.tsx
-│       └── components/
-│           ├── Footer.tsx
-│           └── Header.tsx
-└── tests/
-    ├── test_index_pdf.py
-    ├── test_hybrid_search.py
-    ├── test_knowledge_base.py
-    ├── test_rag_service.py
-    └── test_tax_credit_service.py
-```
+## 문서 안내
 
-진단·리포트 UI는 구현되어 있으나, 별도 챗봇 화면과 운영용 인증·호출 제한은 아직 구현 전입니다.
+| 문서 | 내용 |
+| --- | --- |
+| [API 가이드](docs/api.md) | 엔드포인트, 인증, 요청 예시, SSE, 데이터 저장 |
+| [개발·검증 가이드](docs/development.md) | 환경 설정, 테스트, 프로젝트 구조, GitHub 현황 |
+| [RAG 운영 문서](docs/rag.md) | 환경변수, 인덱싱, 비용·안전 제한 |
+| [검색 평가](docs/retrieval-evaluation.md) | 고정 평가셋과 검색 성능 |
+| [답변 품질 평가](docs/answer-quality-evaluation.md) | 근거 충실도·관련성·환각 평가 |
 
-## 목표 프로젝트 구조
+## 현재 검증 상태
 
-아래 구조는 MVP 개발이 진행되면서 구성할 목표 디렉터리입니다. 현재 모두 구현된 상태를 의미하지 않습니다.
+- Python 테스트 79개 통과
+- 프론트엔드 진단 시뮬레이터 테스트 3개 통과
+- 2026-08-05 조회 시 열린 GitHub 이슈와 PR 없음
 
-```text
-pension-tax-assistant/
-├── .env.example                # 환경변수 템플릿
-├── .gitignore                  # Git 제외 목록
-├── AGENTS.md                   # 에이전트 및 기여자 작업 규칙
-├── README.md                   # 프로젝트 개요 및 실행 가이드
-├── requirements.txt            # Python 패키지 목록
-│
-├── app/                        # Backend (FastAPI)
-│   ├── main.py                 # FastAPI 실행, CORS 및 라우터 등록
-│   ├── api/
-│   │   └── v1/
-│   │       ├── diagnose.py     # POST /api/v1/tax/diagnose
-│   │       └── chat.py         # POST /api/v1/chat/query
-│   │
-│   ├── services/
-│   │   ├── tax_credit_service.py  # 연금계좌 진단 및 계산
-│   │   └── rag_service.py      # 검색 및 LLM 답변 생성
-│   │
-│   ├── core/
-│   │   ├── config.py           # 환경변수 및 앱 설정
-│   │   ├── db.py               # SQLite 연결(향후)
-│   │   ├── vector_db.py        # Vector DB 초기화
-│   │   └── prompts.py          # 챗봇 프롬프트 및 답변 정책
-│   │
-│   ├── models/
-│   │   ├── db_models.py        # 진단·대화 데이터 모델
-│   │   └── schemas.py          # API 요청·응답 스키마
-│   │
-│   └── data/
-│       └── tax_faq.json        # 공식 자료 기반 연말정산 지식베이스
-│
-└── frontend/
-    ├── src/
-    │   ├── app/                # App Router: 진단, 리포트, 챗봇 페이지
-    │   ├── components/         # 버튼, 슬라이더, 카드, 대화창
-    │   └── services/           # 백엔드 API 통신
-    └── package.json
-```
-
-## MVP 범위
-
-### 포함
-
-- 두 가지 입력을 이용한 간이 진단
-- 연금저축·IRP 납입 한도 및 예상 세액공제액 계산
-- ISA 만기자금의 연금계좌 전환 안내
-- 사용자 유형별 진단 리포트와 추천 질문
-- 연금 및 연말정산 기초 개념 Q&A
-- 연금 외 확장 질문에 대한 적용 조건·서류·공식 채널 안내
-
-### 제외
-
-- 국세청 데이터 자동 연동 및 신고 대행
-- 로그인, 회원가입 및 사용자 금융정보 저장
-- 의료비·교육비·주택자금 등 연금 외 공제 항목의 확정적 정밀 계산
-- 장기 재무설계 또는 금융상품 매매·가입 대행
-
-## 개발 로드맵
-
-- [x] 프로젝트 저장소 및 FastAPI 기본 환경 구성 (#1 코드 반영)
-- [x] CORS 및 상태 확인 API 구현 (#1 코드 반영)
-- [x] 연금저축·IRP·ISA FAQ 30개와 출처 메타데이터 추가, 2025 연말정산 PDF 인덱서 구현 (#20)
-- [x] 연금계좌 세액공제 계산 서비스 구현 (#3)
-- [x] 계산 서비스 단위 테스트 16개 작성 (#3)
-- [x] ChromaDB 및 OpenAI RAG 파이프라인 구축 (#4)
-- [x] BM25·Vector 하이브리드 검색 및 리랭킹 파이프라인 구축 (#28, 프로젝트 Issue #11)
-- [x] 정책 설명 챗봇 답변 품질 오프라인 평가 구축
-- [x] Next.js/React 랜딩·진단·리포트 UI 구현 (#21)
-- [x] 연금 세액공제 진단 API 구현 (#12, 프로젝트 Issue #6)
-- [x] RAG 챗봇 질문 답변 API 구현 (#13, 프로젝트 Issue #7)
-- [x] 일반 연말정산 FAQ 지식 데이터 확장 (#22, PR #25)
-- [ ] 챗봇 API 자동화 테스트, 호출 제한과 안전한 오류 응답 보강
-- [ ] 사용자 상태 기반 추천 질문 생성
-- [ ] 챗봇 UI 구현
-- [ ] 통합 테스트 및 최종 시연
+상세 결과와 최근 반영 내역은 [개발·검증 가이드](docs/development.md)를 참고하세요.
 
 ## 세법 기준 및 참고 자료
 
@@ -518,8 +152,11 @@ pension-tax-assistant/
 - [국가법령정보센터 — 소득세법 제59조의3](https://law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1021863203)
 - [국가법령정보센터 — 조세특례제한법 제95조의2](https://www.law.go.kr/lsLinkCommonInfo.do?chrClsCd=010202&lsJoLnkSeq=1026488335)
 
-세법은 개정될 수 있으므로 계산 로직과 RAG 지식베이스에는 적용 기준일과 출처를 함께 관리합니다.
+세법은 개정될 수 있으므로 계산 로직과 RAG 지식베이스에는 적용 기준일과 출처를 함께
+관리합니다.
 
 ## 면책 안내
 
-> 본 서비스는 입력한 소득 구간과 공식 자료를 기반으로 한 참고용 시뮬레이션입니다. 표시되는 금액은 예상 세액공제 효과이며 실제 환급액을 보장하지 않습니다. 최종 세액공제 적용 여부와 금액은 국세청 연말정산 신고 결과 또는 세무 전문가의 확인을 따릅니다.
+> 본 서비스는 입력한 총급여와 연금계좌 납입액, 공식 자료를 바탕으로 한 참고용
+> 시뮬레이션입니다. 표시 금액은 예상치이며 실제 환급액을 보장하지 않습니다. 최종
+> 적용 여부와 금액은 국세청 신고 결과 또는 세무 전문가의 확인을 따라야 합니다.
