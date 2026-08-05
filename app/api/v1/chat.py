@@ -1,8 +1,11 @@
 from dataclasses import asdict, is_dataclass
-from typing import Any, Dict, List
-from fastapi import APIRouter, HTTPException
+from typing import Any, Dict, List, Optional
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from app.db.session import get_db
+from app.services.chat_history_service import ChatHistoryService
 from app.services.rag_service import RAGService
 
 router = APIRouter()
@@ -11,6 +14,7 @@ rag_service = RAGService()
 
 class ChatQueryRequest(BaseModel):
     question: str = Field(..., description="유저의 연금/절세 관련 질문", example="연금저축이랑 IRP 차이가 뭐야?")
+    session_id: Optional[str] = Field("default_session", description="세션/사용자 식별자 ID", example="user_123")
 
 
 class ChatQueryResponse(BaseModel):
@@ -35,12 +39,22 @@ def _to_dict(obj: Any) -> Dict[str, Any]:
 
 
 @router.post("/chat/query", response_model=ChatQueryResponse)
-def query_chat(request: ChatQueryRequest):
+def query_chat(request: ChatQueryRequest, db: Session = Depends(get_db)):
     try:
-        # RAG 서비스를 통한 질문 답변 생성
+        session_id = request.session_id or "default_session"
+
+        # 1. 사용자 질문 DB 저장 (PII 사전 마스킹 자동 적용)
+        ChatHistoryService.save_message(
+            db=db,
+            session_id=session_id,
+            role="user",
+            message=request.question
+        )
+
+        # 2. RAG 서비스를 통한 질문 답변 생성
         result = rag_service.answer_question(request.question)
         
-        # 1. 속성값 읽기 (answer, sources)
+        # 속성값 읽기 (answer, sources)
         raw_answer = getattr(result, "answer", "")
         raw_sources = getattr(result, "sources", [])
 
@@ -49,14 +63,36 @@ def query_chat(request: ChatQueryRequest):
             raw_answer = result.get("answer", "")
             raw_sources = result.get("sources", [])
 
-        # 2. sources 내부 element들을 dict로 강제 변환
+        # sources 내부 element들을 dict로 강제 변환
         formatted_sources = [_to_dict(s) for s in raw_sources]
+        final_answer = str(raw_answer)
+
+        # 3. AI 답변 DB 저장
+        ChatHistoryService.save_message(
+            db=db,
+            session_id=session_id,
+            role="assistant",
+            message=final_answer
+        )
 
         return ChatQueryResponse(
             success=True,
-            answer=str(raw_answer),
+            answer=final_answer,
             sources=formatted_sources
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"챗봇 응답 생성 중 오류 발생: {str(e)}")
+
+
+@router.get("/chat/history/{session_id}")
+def get_chat_history(session_id: str, db: Session = Depends(get_db)):
+    """
+    특정 세션 ID의 이전 대화 내역을 최신순으로 조회하는 API
+    """
+    history = ChatHistoryService.get_history(db, session_id)
+    return {
+        "success": True,
+        "session_id": session_id,
+        "history": history
+    }
