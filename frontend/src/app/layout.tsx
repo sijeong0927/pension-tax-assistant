@@ -9,9 +9,13 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "절세택시 | 연금 세액공제 AI 빠른 경로 안내",
-  description:
-    "연금저축과 IRP로 세금 얼마나 아껴요? 1초 만에 최적의 절세 경로로 안내받으세요.",
+  title: "tax-i [절세택시]",
+  description: "AI 연말정산 & 절세 상담 서비스",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
