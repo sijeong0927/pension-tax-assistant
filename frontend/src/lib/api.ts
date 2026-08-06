@@ -173,6 +173,7 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
 export interface TaxSavingsData {
   session_id: string;
   income_range: string;
+  total_salary?: number;
   pension_savings_paid: number;
   irp_paid: number;
   deductible_pension_savings: number;

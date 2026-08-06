@@ -384,10 +384,20 @@ export default function ChatPage() {
     }
   }, []);
 
-  // When sidebarView changes to savings, fetch savings data
+  // When sidebarView changes to savings, fetch savings data and auto-fill gross salary
   useEffect(() => {
     if (sidebarView === 'savings' && sessionId) {
-      fetchTaxSavings(sessionId).then(setSavingsData);
+      fetchTaxSavings(sessionId).then((data) => {
+        setSavingsData(data);
+        if (data) {
+          if (data.total_salary && data.total_salary > 0) {
+            setGrossSalaryInput(data.total_salary.toLocaleString('ko-KR'));
+          } else if (data.income_range) {
+            const fallbackSalary = data.income_range === 'over' ? 70000000 : 40000000;
+            setGrossSalaryInput(fallbackSalary.toLocaleString('ko-KR'));
+          }
+        }
+      });
     }
   }, [sidebarView, sessionId]);
 
@@ -938,7 +948,12 @@ export default function ChatPage() {
                         {/* 세부항목 – 작고 질서정연한 행 목록 */}
                         <div className="space-y-3">
                           {[
-                            { label: '총 급여 구간', value: savingsData.income_range === 'over' ? '5,500만원 초과' : '5,500만원 이하' },
+                            {
+                              label: savingsData.total_salary && savingsData.total_salary > 0 ? '세전 연봉 (총 급여)' : '총 급여 구간',
+                              value: savingsData.total_salary && savingsData.total_salary > 0
+                                ? `${(savingsData.total_salary / 10000).toLocaleString()}만원 (${savingsData.income_range === 'over' ? '5,500만원 초과' : '5,500만원 이하'})`
+                                : (savingsData.income_range === 'over' ? '5,500만원 초과' : '5,500만원 이하')
+                            },
                             { label: '연금저축 납입', value: `${(savingsData.pension_savings_paid / 10000).toLocaleString()}만원` },
                             { label: 'IRP 납입', value: `${(savingsData.irp_paid / 10000).toLocaleString()}만원` },
                             { label: '공제 대상 금액', value: `${(savingsData.deductible_amount / 10000).toLocaleString()}만원` },
