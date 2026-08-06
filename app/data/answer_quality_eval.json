@@ -135,7 +135,7 @@
     {
       "id": "nts_office_visit_documents",
       "query": "국세청에 방문할 때 필요한 서류나 준비물은 무엇인가요?",
-      "expected_behavior": "no_answer"
+      "expected_behavior": "policy_explanation"
     }
   ]
 }

@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def test_load_current_knowledge_base_has_verified_provenance() -> None:
     report = load_knowledge_base(PROJECT_ROOT / "app/data/tax_faq.json")
 
-    assert len(report.documents) == 60
+    assert len(report.documents) == 61
     assert report.documents[0].document_id == "guide_00"
     assert report.warnings == ()
     assert all(
@@ -32,7 +32,7 @@ def test_strict_provenance_accepts_current_knowledge_base() -> None:
         strict_provenance=True,
     )
 
-    assert len(report.documents) == 60
+    assert len(report.documents) == 61
 
 
 def test_every_faq_references_preindexed_pdf_chunks() -> None:
@@ -43,15 +43,15 @@ def test_every_faq_references_preindexed_pdf_chunks() -> None:
         if document.document_id.startswith("faq_")
     ]
 
-    assert len(faq_documents) == 59
+    assert len(faq_documents) == 60
     assert all(document.source_chunk_ids.startswith("pdf_") for document in faq_documents)
 
 
 def test_all_faq_pdf_links_resolve_to_official_source_chunks() -> None:
     result = validate_faq_pdf_links()
 
-    assert result.faq_count == 59
-    assert result.chunk_link_count >= 59
+    assert result.faq_count == 60
+    assert result.chunk_link_count >= 60
     assert result.source_count == 7
 
 

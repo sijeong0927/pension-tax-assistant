@@ -578,6 +578,17 @@
       "source_url": "https://www.nts.go.kr/nts/na/ntt/selectNttInfo.do?mi=2201&nttSn=1351098",
       "effective_date": "2026-05-14",
       "last_verified": "2026-08-05"
+    },
+    {
+      "id": "faq_60",
+      "source_chunk_ids": ["pdf_nts-2025-year-end-tax-guide_54a1d1c415968283_page_045_chunk_001", "pdf_nts-2025-year-end-tax-guide_54a1d1c415968283_page_393_chunk_003"],
+      "category": "간소화서비스·서류 준비",
+      "question": "국세청에 방문할 때 필요한 서류나 준비물은 무엇인가요?",
+      "answer": "연말정산 절차에서 근로자가 국세청(세무서)에 직접 방문해야 하는 경우는 많지 않습니다. 간소화자료 일괄제공 신청 확인, 소득·세액공제 증명자료 확인과 내려받기는 홈택스(www.hometax.go.kr)에서 온라인으로 진행합니다. 다만 간소화서비스에서 제공되지 않는 일부 증빙(예: 기부금, 교복구입비, 안경구입비, 난임시술비가 포함된 의료비 등)은 국세청이 아니라 해당 영수증 발급기관에서 직접 발급받아 회사(원천징수의무자)에 제출해야 합니다.",
+      "source_title": "국세청, 2025년 원천징수의무자를 위한 연말정산 신고안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "effective_date": "2025-01-01",
+      "last_verified": "2026-08-06"
     }
   ]
 }
