@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Footer from '@/components/Footer';
 import { isAuthenticated } from '@/lib/auth';
+import { BASE_URL } from '@/lib/api';
 import {
   PENSION_SAVINGS_MAX,
   PENSION_STEP,
@@ -659,7 +660,7 @@ function Step3({
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/v1/tax/diagnose', {
+        const response = await fetch(`${BASE_URL}/api/v1/tax/diagnose`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1092,7 +1093,7 @@ export default function DiagnosePage() {
     setError(null);
 
     try {
-      const res = await fetch('http://localhost:8000/api/v1/tax/diagnose', {
+      const res = await fetch(`${BASE_URL}/api/v1/tax/diagnose`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ total_salary: totalSalary, pension_savings: pensionSavings, irp }),

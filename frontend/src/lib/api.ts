@@ -7,7 +7,7 @@
  *   POST /api/v1/chat/query                 → AI 질의 및 저장
  */
 
-const BASE_URL =
+export const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 import { getAuthToken } from './auth';
