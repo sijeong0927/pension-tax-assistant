@@ -43,21 +43,56 @@ class FakeResponses:
         )
 
 
+class FakeChatCompletions:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.response_intent = "회사제출용"
+
+    def create(self, **kwargs: Any) -> SimpleNamespace:
+        self.calls.append(kwargs)
+        messages = kwargs.get("messages", [])
+        user_msg = ""
+        for m in messages:
+            if isinstance(m, dict) and m.get("role") == "user":
+                user_msg = m.get("content", "")
+        
+        # Extract the actual query part to avoid matching system template instructions
+        actual_query = user_msg
+        if "[질문]:" in user_msg:
+            parts = user_msg.split("[질문]:")
+            if len(parts) > 1:
+                actual_query = parts[1].split("반드시 JSON")[0]
+            
+        intent = self.response_intent
+        # Simple dynamic mocking based on keywords in actual query
+        if "세무서" in actual_query or "국세청" in actual_query or "방문" in actual_query or "사업자등록" in actual_query:
+            intent = "관할세무서"
+            
+        content = json.dumps({"intent": intent})
+        message = SimpleNamespace(content=content)
+        choice = SimpleNamespace(message=message)
+        return SimpleNamespace(choices=[choice])
+
+
 class FakeOpenAI:
     def __init__(self) -> None:
         self.embeddings = FakeEmbeddings()
         self.responses = FakeResponses()
+        self.chat = SimpleNamespace(completions=FakeChatCompletions())
 
 
 class FakeCollection:
     def __init__(self, *, distance: float = 0.1) -> None:
         self.distance = distance
         self.upsert_payload: dict[str, Any] | None = None
+        self.last_query_where: dict[str, Any] | None = None
+        self.last_get_where: dict[str, Any] | None = None
 
     def count(self) -> int:
         return 1
 
-    def query(self, **_: Any) -> dict[str, Any]:
+    def query(self, **kwargs: Any) -> dict[str, Any]:
+        self.last_query_where = kwargs.get("where")
         return {
             "ids": [["faq_01"]],
             "documents": [["질문: 납입 한도는?\n답변: 합산 900만 원입니다."]],
@@ -72,14 +107,16 @@ class FakeCollection:
                         "last_verified": "2026-08-04",
                         "source_chunk_ids": "faq_01",
                         "provenance_verified": True,
+                        "target": "회사제출용",
                     }
                 ]
             ],
             "distances": [[self.distance]],
         }
 
-    def get(self, **_: Any) -> dict[str, Any]:
-        result = self.query()
+    def get(self, **kwargs: Any) -> dict[str, Any]:
+        self.last_get_where = kwargs.get("where")
+        result = self.query(**kwargs)
         return {
             "ids": result["ids"][0],
             "documents": result["documents"][0],
@@ -533,3 +570,42 @@ def test_missing_openai_api_key_has_actionable_error(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigurationError, match="OPENAI_API_KEY"):
         service.retrieve("연금계좌 세액공제 한도는?")
+
+
+def test_query_router_rules() -> None:
+    from app.services.query_router import is_obvious_tax_office_visit
+    
+    assert is_obvious_tax_office_visit("세무서 갈 때 신분증만 가져가면 되나요?") is True
+    assert is_obvious_tax_office_visit("국세청 방문 서류가 뭐야?") is True
+    assert is_obvious_tax_office_visit("연금저축 한도는 어떻게 되나요?") is False
+
+
+def test_query_router_llm_fallback() -> None:
+    from app.services.query_router import route_query
+    
+    openai_client = FakeOpenAI()
+    openai_client.chat.completions.response_intent = "회사제출용"
+    
+    # 룰 매칭이 되지 않는 다소 모호한 문장 -> LLM 판별
+    intent = route_query("연말정산 낼 서류 알려주라", openai_client, "gpt-4o-mini")
+    assert intent == "회사제출용"
+    
+    openai_client.chat.completions.response_intent = "관할세무서"
+    intent = route_query("사업자등록하러 가려고 해", openai_client, "gpt-4o-mini")
+    assert intent == "관할세무서"
+
+
+def test_rag_service_tax_office_visit_uses_filter(tmp_path: Path) -> None:
+    openai_client = FakeOpenAI()
+    collection = FakeCollection()
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=openai_client,
+        collection=collection,
+    )
+    
+    # "국세청 방문할 때 필요한 서류"는 룰 매칭으로 인해 "관할세무서"로 분류됨
+    service.retrieve("국세청 방문할 때 필요한 서류가 뭐야?")
+    
+    assert collection.last_query_where == {"target": "관할세무서"}
+    assert collection.last_get_where == {"target": "관할세무서"}

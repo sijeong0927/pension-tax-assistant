@@ -336,16 +336,20 @@ def hybrid_search(
     candidate_k: int,
     top_k: int,
     min_relevance_score: float,
+    filter_target: str | None = None,
 ) -> list[RankedCandidate]:
     """벡터·BM25 후보를 RRF와 법령 일치 신호로 결정론적으로 재정렬한다."""
     try:
+        where_clause = {"target": filter_target} if filter_target else None
         vector_result = collection.query(
             query_embeddings=[list(query_embedding)],
             n_results=candidate_k,
             include=["documents", "metadatas", "distances"],
+            where=where_clause,
         )
         collection_result = collection.get(
             include=["documents", "metadatas"],
+            where=where_clause,
         )
     except Exception as exc:
         raise HybridSearchError("ChromaDB 하이브리드 검색에 실패했습니다.") from exc

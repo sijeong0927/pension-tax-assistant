@@ -62,13 +62,14 @@ def test_extended_faqs_have_distinct_questions_and_verified_provenance() -> None
     )
     documents = {document.document_id: document for document in report.documents}
 
-    assert {f"faq_{number}" for number in range(42, 60)} <= documents.keys()
+    assert {f"faq_{number}" for number in range(42, 61)} <= documents.keys()
     assert all(
         documents[f"faq_{number}"].provenance_verified
-        for number in range(42, 60)
+        for number in range(42, 61)
     )
     assert "해당 과세기간" in documents["faq_42"].text
     assert "5년 이내" in documents["faq_59"].text
+    assert "신분증" in documents["faq_60"].text
 
 
 def test_corrected_faqs_use_official_sources_and_safe_tax_wording() -> None:

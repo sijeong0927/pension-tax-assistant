@@ -230,6 +230,19 @@ class RAGService:
             document_count,
         )
 
+        # RAG 쿼리 라우팅 및 타겟 메타데이터 판별
+        from app.services.query_router import route_query
+        filter_target = None
+        try:
+            filter_target = route_query(
+                normalized_question,
+                openai_client=self._get_openai_client(),
+                model=self.settings.openai_chat_model,
+            )
+        except Exception:
+            # 의도 분류 중 오류가 생기면 전체 검색으로 fallback
+            pass
+
         query_embedding = self._embed([normalized_question])[0]
         try:
             ranked_candidates = hybrid_search(
@@ -239,6 +252,7 @@ class RAGService:
                 candidate_k=candidate_count,
                 top_k=requested_top_k,
                 min_relevance_score=self.settings.rag_min_relevance_score,
+                filter_target=filter_target,
             )
         except HybridSearchError as exc:
             raise RAGServiceError("ChromaDB 문서 검색에 실패했습니다.") from exc
