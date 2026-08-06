@@ -35,11 +35,12 @@ export default function Home() {
 
           {/* ── Hero ── */}
           <div className="flex flex-col items-center gap-4 md:gap-6 w-full">
-            {/* Icon circle - Responsive Size */}
-            <div className="hero-icon-circle shadow-xl md:shadow-2xl animate-in fade-in zoom-in duration-700 ease-out fill-mode-both hover:scale-105 transition-transform">
+            {/* Icon circle - Larger Display */}
+            <div className="hero-icon-circle shadow-xl md:shadow-2xl animate-in fade-in zoom-in duration-700 ease-out fill-mode-both hover:scale-105 transition-transform" style={{ width: '130px', height: '130px' }}>
               <span
-                className="material-symbols-outlined text-5xl md:text-7xl"
+                className="material-symbols-outlined text-6xl sm:text-7xl md:text-8xl"
                 style={{
+                  fontSize: "72px",
                   color: "var(--color-primary)",
                   fontVariationSettings: "'FILL' 1, 'wght' 300",
                 }}
