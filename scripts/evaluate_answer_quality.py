@@ -19,6 +19,7 @@ from app.services.answer_quality_evaluation import (
     load_answer_quality_evaluation,
     summarize_results,
 )
+from app.services.chat_calculation_guard import is_personal_calculation_request
 from app.services.rag_service import (
     KnowledgeBaseNotIndexedError,
     RAGService,
@@ -71,7 +72,11 @@ def evaluate(
 
     results: list[AnswerQualityCaseResult] = []
     for case in cases:
-        retrieved = rag_service.retrieve(case.query)
+        retrieved = (
+            []
+            if is_personal_calculation_request(case.query)
+            else rag_service.retrieve(case.query)
+        )
         answer = rag_service.answer_from_retrieved_documents(
             case.query,
             retrieved,
