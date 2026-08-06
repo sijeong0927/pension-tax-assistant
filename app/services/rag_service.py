@@ -12,6 +12,10 @@ from app.core.prompts import (
 )
 from app.core.vector_db import get_vector_collection
 from app.models.rag import RAGAnswer, RAGSource
+from app.services.chat_calculation_guard import (
+    CALCULATION_HANDOFF_MESSAGE,
+    is_personal_calculation_request,
+)
 from app.services.hybrid_search import (
     HybridSearchError,
     hybrid_search,
@@ -266,6 +270,14 @@ class RAGService:
 
     def answer_question_stream(self, question: str, chat_history: list[dict[str, Any]] | None = None):
         import json
+        if is_personal_calculation_request(question):
+            yield "event: sources\ndata: []\n\n"
+            yield (
+                "event: message\ndata: "
+                f"{json.dumps({'content': CALCULATION_HANDOFF_MESSAGE}, ensure_ascii=False)}\n\n"
+            )
+            return
+
         retrieved = self.retrieve(question)
         if not retrieved:
             yield f"event: sources\ndata: []\n\n"
@@ -359,6 +371,9 @@ class RAGService:
             yield f"event: error\ndata: {json.dumps({'error': str(exc)}, ensure_ascii=False)}\n\n"
 
     def answer_question(self, question: str, chat_history: Sequence[dict[str, Any]] | None = None) -> RAGAnswer:
+        if is_personal_calculation_request(question):
+            return self._calculation_handoff_answer()
+
         retrieved = self.retrieve(question)
         return self.answer_from_retrieved_documents(
             question,
@@ -374,6 +389,9 @@ class RAGService:
         chat_history: Sequence[dict[str, Any]] | None = None,
     ) -> RAGAnswer:
         """Generate an answer from already retrieved evidence without retrieving again."""
+        if is_personal_calculation_request(question):
+            return self._calculation_handoff_answer()
+
         if not retrieved:
             return RAGAnswer(
                 answer=NO_RELEVANT_CONTEXT_MESSAGE,
@@ -426,6 +444,18 @@ class RAGService:
             ),
             sources=sources,
             model=self.settings.openai_chat_model,
+            disclaimer=RAG_DISCLAIMER,
+        )
+
+    @staticmethod
+    def _calculation_handoff_answer() -> RAGAnswer:
+        """Return the deterministic chat-scope response without RAG or an LLM."""
+        return RAGAnswer(
+            answer=CALCULATION_HANDOFF_MESSAGE,
+            grounded=False,
+            needs_source_verification=False,
+            sources=[],
+            model=None,
             disclaimer=RAG_DISCLAIMER,
         )
 

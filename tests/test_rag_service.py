@@ -10,6 +10,7 @@ import pytest
 
 from app.core.config import ConfigurationError, RAGSettings
 from app.core.prompts import RAG_SYSTEM_PROMPT
+from app.services.chat_calculation_guard import CALCULATION_HANDOFF_MESSAGE
 from app.services.knowledge_base import load_knowledge_base
 from app.services.rag_service import RAGService, RAGServiceError
 
@@ -120,6 +121,83 @@ def test_answer_question_returns_sources(tmp_path: Path) -> None:
     assert answer.sources[0].relevance_score == 0.9
     assert openai_client.responses.calls[0]["model"] == "gpt-4o-mini"
     assert "[문서 1]" in openai_client.responses.calls[0]["input"]
+
+
+class FailingCollection:
+    def count(self) -> int:
+        raise AssertionError("Calculation requests must not reach retrieval.")
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "카드 2,000만원 쓰면 소득공제를 얼마 받을 수 있나요?",
+        "내 총급여를 모르는데 카드 사용액 2,000만원의 25% 기준을 계산해 주세요.",
+        "연봉 6,000만원이고 연금저축에 500만원 넣었는데 환급액을 계산해 줘.",
+        "제 한도 채웠나요?",
+        "제 월급과 기존 납입액을 기준으로 올해 더 넣는 게 좋은지 추천해 줄 수 있나요?",
+    ],
+)
+def test_personal_calculation_questions_return_handoff_without_rag(
+    tmp_path: Path,
+    question: str,
+) -> None:
+    openai_client = FakeOpenAI()
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=openai_client,
+        collection=FailingCollection(),
+    )
+
+    answer = service.answer_question(question)
+
+    assert answer.answer == CALCULATION_HANDOFF_MESSAGE
+    assert answer.sources == []
+    assert answer.model is None
+    assert openai_client.embeddings.calls == []
+    assert openai_client.responses.calls == []
+
+
+def test_calculation_handoff_stream_does_not_reach_rag(tmp_path: Path) -> None:
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=FakeOpenAI(),
+        collection=FailingCollection(),
+    )
+
+    events = list(service.answer_question_stream("카드 2,000만원 쓰면 얼마 공제받아?"))
+
+    assert events == [
+        "event: sources\ndata: []\n\n",
+        'event: message\ndata: {"content": "' + CALCULATION_HANDOFF_MESSAGE + '"}\n\n',
+    ]
+
+
+def test_general_policy_question_is_not_treated_as_personal_calculation(
+    tmp_path: Path,
+) -> None:
+    openai_client = FakeOpenAI()
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=openai_client,
+        collection=FakeCollection(),
+    )
+
+    answer = service.answer_question("연금계좌 세액공제 한도는 얼마인가요?")
+
+    assert answer.grounded is True
+    assert len(openai_client.responses.calls) == 1
+
+
+def test_calculation_guard_keeps_existing_non_string_validation(tmp_path: Path) -> None:
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=FakeOpenAI(),
+        collection=FakeCollection(),
+    )
+
+    with pytest.raises(ValueError, match="문자열"):
+        service.answer_question(123)  # type: ignore[arg-type]
 
 
 def test_streamed_sources_include_excerpt_and_hide_relevance_score(

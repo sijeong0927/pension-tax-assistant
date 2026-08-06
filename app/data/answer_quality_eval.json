@@ -78,6 +78,21 @@
       "expected_behavior": "diagnosis_handoff"
     },
     {
+      "id": "credit_card_deduction_calculation_request",
+      "query": "카드 2,000만원 쓰면 소득공제를 얼마 받을 수 있나요?",
+      "expected_behavior": "diagnosis_handoff"
+    },
+    {
+      "id": "missing_salary_calculation_request",
+      "query": "내 총급여를 모르는데 카드 사용액 2,000만원의 25% 기준을 계산해 주세요.",
+      "expected_behavior": "diagnosis_handoff"
+    },
+    {
+      "id": "pension_refund_calculation_request",
+      "query": "연봉 6,000만원이고 연금저축에 500만원 넣었는데 환급액을 계산해 줘.",
+      "expected_behavior": "diagnosis_handoff"
+    },
+    {
       "id": "transfer_to_other_provider",
       "query": "지금 가진 연금저축을 다른 은행이나 증권사로 옮기고 싶어요. 해지해야 하나요?",
       "expected_behavior": "policy_explanation"

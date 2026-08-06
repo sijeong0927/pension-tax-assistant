@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Sequence
 
 from app.models.rag import RAGAnswer
+from app.services.chat_calculation_guard import CALCULATION_HANDOFF_MESSAGE
 from app.services.answer_quality_evaluation import (
     AnswerQualityEvaluationCase,
     AnswerQualityJudgement,
@@ -105,3 +106,53 @@ def test_evaluate_prints_a_terminal_ready_report(
     assert report["summary"]["pass_rate"] == 1
     assert "policy_case" in captured.out
     assert "1/1 passed" in captured.out
+
+
+class CalculationGuardRAGService(FakeRAGService):
+    def retrieve(self, question: str) -> list[RetrievedDocument]:
+        raise AssertionError("Calculation quality cases must not reach retrieval.")
+
+    def answer_from_retrieved_documents(
+        self,
+        question: str,
+        documents: Sequence[RetrievedDocument],
+    ) -> RAGAnswer:
+        assert documents == []
+        self.answered_questions.append(question)
+        return RAGAnswer(
+            answer=CALCULATION_HANDOFF_MESSAGE,
+            grounded=False,
+            needs_source_verification=False,
+            sources=[],
+            model=None,
+            disclaimer="참고용 안내",
+        )
+
+
+def test_evaluate_calculation_case_skips_retrieval(tmp_path: Path) -> None:
+    evaluation_path = tmp_path / "evaluation.json"
+    evaluation_path.write_text(
+        json.dumps(
+            {
+                "cases": [
+                    {
+                        "id": "calculation_case",
+                        "query": "카드 2,000만원 쓰면 소득공제를 얼마 받을 수 있나요?",
+                        "expected_behavior": "diagnosis_handoff",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    service = CalculationGuardRAGService()
+
+    report = evaluate(
+        evaluation_path=evaluation_path,
+        service=service,  # type: ignore[arg-type]
+        evaluator=FakeEvaluator(),  # type: ignore[arg-type]
+    )
+
+    assert service.answered_questions == ["카드 2,000만원 쓰면 소득공제를 얼마 받을 수 있나요?"]
+    assert report["cases"][0]["answer"] == CALCULATION_HANDOFF_MESSAGE
