@@ -83,6 +83,8 @@ class RAGSettings:
     rag_top_k: int
     rag_candidate_k: int
     rag_min_relevance_score: float
+    rag_context_document_limit: int
+    rag_linked_evidence_per_faq: int
     rag_max_index_documents: int
     rag_max_pdf_documents: int
     rag_max_pdf_embedding_requests: int
@@ -134,6 +136,18 @@ class RAGSettings:
                 "RAG_MIN_RELEVANCE_SCORE",
                 0.35,
             ),
+            rag_context_document_limit=_bounded_int(
+                "RAG_CONTEXT_DOCUMENT_LIMIT",
+                6,
+                minimum=1,
+                maximum=12,
+            ),
+            rag_linked_evidence_per_faq=_bounded_int(
+                "RAG_LINKED_EVIDENCE_PER_FAQ",
+                2,
+                minimum=1,
+                maximum=4,
+            ),
             rag_max_index_documents=_bounded_int(
                 "RAG_MAX_INDEX_DOCUMENTS",
                 100,
@@ -142,9 +156,9 @@ class RAGSettings:
             ),
             rag_max_pdf_documents=_bounded_int(
                 "RAG_MAX_PDF_DOCUMENTS",
-                1000,
+                1200,
                 minimum=1,
-                maximum=1000,
+                maximum=1500,
             ),
             rag_max_pdf_embedding_requests=_bounded_int(
                 "RAG_MAX_PDF_EMBEDDING_REQUESTS",

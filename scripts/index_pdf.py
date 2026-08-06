@@ -53,6 +53,72 @@ class CollectionSnapshot:
 
 OFFICIAL_PDF_SOURCES: tuple[PDFSource, ...] = (
     PDFSource(
+        source_id="law-2026-income-tax-act",
+        sha256=(
+            "8e4753899fb16bac81c9769d0f61382a36d81e67742d3a675e6516187086766a"
+        ),
+        source_title="소득세법",
+        source_url="https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq=280405",
+        effective_date="2026-07-01",
+        last_verified="2026-08-06",
+        provenance_verified=True,
+    ),
+    PDFSource(
+        source_id="law-2026-income-tax-decree",
+        sha256=(
+            "5cb1bfedb67bcc8c36a97ce042f22d3707a621f8415ebcd273edca73bb4c6e30"
+        ),
+        source_title="소득세법 시행령",
+        source_url="https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq=286211",
+        effective_date="2026-07-01",
+        last_verified="2026-08-06",
+        provenance_verified=True,
+    ),
+    PDFSource(
+        source_id="law-2026-special-tax-treatment-act",
+        sha256=(
+            "9fba29bf8f3f90da8f1227f0a54cf8885c4aa5eb28f64c45b83b3cf83a6b4ad6"
+        ),
+        source_title="조세특례제한법",
+        source_url="https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq=280409",
+        effective_date="2026-07-01",
+        last_verified="2026-08-06",
+        provenance_verified=True,
+    ),
+    PDFSource(
+        source_id="fsc-2025-pension-savings-white-paper",
+        sha256=(
+            "6a601976261ead6702c9d44a03f0ac76a64c4a687cb90767fc3ab68f6240b8ff"
+        ),
+        source_title="2025년 우리나라 연금저축(PSA) 투자 백서",
+        source_url="https://www.fsc.go.kr/po010103/87144",
+        effective_date="2026-06-18",
+        last_verified="2026-08-06",
+        provenance_verified=True,
+    ),
+    PDFSource(
+        source_id="fsc-2018-retirement-pension-risk-assets",
+        sha256=(
+            "d1de6bd7f78c4357e7c8e70a57bf96452abb0dca919f5dc4fdec4b69c0b0a74e"
+        ),
+        source_title="퇴직연금감독규정 개정안 금융위 의결",
+        source_url="https://www.fsc.go.kr/po010103/73294",
+        effective_date="2018-08-31",
+        last_verified="2026-08-06",
+        provenance_verified=True,
+    ),
+    PDFSource(
+        source_id="law-2026-retirement-benefits-act",
+        sha256=(
+            "86f057e14319fbd81a54c22a7c7fd5e473a24eb6226bb2118c365def033ad5ac"
+        ),
+        source_title="근로자퇴직급여 보장법",
+        source_url="https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq=284455",
+        effective_date="2026-07-01",
+        last_verified="2026-08-06",
+        provenance_verified=True,
+    ),
+    PDFSource(
         source_id="nts-2025-year-end-tax-guide",
         sha256=(
             "54a1d1c4159682830a2242dbd1a4ac7d6fccc69898372d12e96374d7d755c182"
