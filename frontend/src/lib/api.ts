@@ -299,3 +299,48 @@ export async function fetchMe() {
   }
   return res.json();
 }
+
+export interface LiteTaxData {
+  grossSalary: number;
+  taxableIncome: number;
+  taxBase: number;
+  calculatedTax: number;
+  earnedIncomeTaxCredit: number;
+  pensionTaxCredit: number;
+  finalTax: number;
+  estimatedPrepaidTax: number;
+  incomeTaxDiff: number;
+  localTaxDiff: number;
+  totalDifference: number;
+  status: 'REFUND' | 'PAYMENT';
+}
+
+export async function calculateLiteTax(
+  grossSalary: number,
+  familyCount: number,
+  prepaidTax: number | null,
+  sessionId: string | null
+): Promise<LiteTaxData | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/v1/lite-tax`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        gross_salary: grossSalary,
+        family_count: familyCount,
+        prepaid_tax: prepaidTax,
+        session_id: sessionId,
+      }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.success && json.data) {
+      return json.data as LiteTaxData;
+    }
+    return null;
+  } catch (error) {
+    console.error('[calculateLiteTax] error:', error);
+    return null;
+  }
+}
+

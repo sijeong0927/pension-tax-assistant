@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import Link from 'next/link';
-import { fetchChatHistory, sendQueryStream, fetchSessions, deleteSession, fetchTaxSavings, fetchMe, type ChatMessage, type SessionMeta, type SourceDoc, type TaxSavingsData } from '@/lib/api';
+import { fetchChatHistory, sendQueryStream, fetchSessions, deleteSession, fetchTaxSavings, fetchMe, calculateLiteTax, type ChatMessage, type SessionMeta, type SourceDoc, type TaxSavingsData, type LiteTaxData } from '@/lib/api';
 import { isAuthenticated } from '@/lib/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -256,6 +256,56 @@ export default function ChatPage() {
   const [savingsData, setSavingsData] = useState<TaxSavingsData | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+
+  // 🧮 간이 연말정산 계산기 State
+  const [grossSalaryInput, setGrossSalaryInput] = useState('');
+  const [familyCount, setFamilyCount] = useState(1);
+  const [prepaidTaxInput, setPrepaidTaxInput] = useState('');
+  const [isAccordionOpen, setIsAccordionOpen] = useState(false);
+  const [isCalcResultOpen, setIsCalcResultOpen] = useState(false);
+  const [calcLoading, setCalcLoading] = useState(false);
+  const [calcResult, setCalcResult] = useState<LiteTaxData | null>(null);
+
+  const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawVal = e.target.value.replace(/[^0-9]/g, '');
+    if (!rawVal) {
+      setGrossSalaryInput('');
+      return;
+    }
+    setGrossSalaryInput(parseInt(rawVal, 10).toLocaleString('ko-KR'));
+  };
+
+  const handlePrepaidTaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawVal = e.target.value.replace(/[^0-9]/g, '');
+    if (!rawVal) {
+      setPrepaidTaxInput('');
+      return;
+    }
+    setPrepaidTaxInput(parseInt(rawVal, 10).toLocaleString('ko-KR'));
+  };
+
+  const handleCalculate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const rawSalary = parseInt(grossSalaryInput.replace(/,/g, ''), 10);
+    if (isNaN(rawSalary) || rawSalary <= 0) {
+      alert('세전 연봉을 올바르게 입력해 주세요.');
+      return;
+    }
+
+    setCalcLoading(true);
+    const rawPrepaid = prepaidTaxInput ? parseInt(prepaidTaxInput.replace(/,/g, ''), 10) : null;
+    const activeSessionId = sessionId ?? getStoredSessionId();
+
+    const data = await calculateLiteTax(rawSalary, familyCount, rawPrepaid, activeSessionId);
+    setCalcLoading(false);
+
+    if (data) {
+      setCalcResult(data);
+      setIsCalcResultOpen(true);
+    } else {
+      alert('계산 중 오류가 발생했습니다. 백엔드 상태를 확인해 주세요.');
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated()) {
@@ -844,6 +894,222 @@ export default function ChatPage() {
                           적용 세액공제율 <strong style={{ fontSize: '15px' }}>{savingsData.income_range === 'over' ? '13.2%' : '16.5%'}</strong>
                           {' '}(총급여 {savingsData.income_range === 'over' ? '5,500만원 초과' : '5,500만원 이하'} 기준)
                         </span>
+                      </div>
+
+                      {/* 🧮 간이 연말정산 시뮬레이터 통합 섹션 */}
+                      <div
+                        className="rounded-xl p-5 mb-5"
+                        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
+                      >
+                        <div className="mb-4 pb-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                          <h3 className="font-bold text-[15px] flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                            <span className="material-symbols-outlined" style={{ color: 'var(--color-primary)', fontSize: '20px' }}>calculate</span>
+                            간이 연말정산 시뮬레이터
+                          </h3>
+                          <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                            기존에 진단 및 저장하신 연금저축/IRP 납입액이 자동으로 연동됩니다.
+                          </p>
+                        </div>
+
+                        {/* 계산기 입력 폼 */}
+                        <form onSubmit={handleCalculate} className="space-y-4">
+                          {/* 세전 연봉 */}
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                              세전 연봉 입력
+                            </label>
+                            <div className="relative flex items-center">
+                              <input
+                                type="text"
+                                value={grossSalaryInput}
+                                onChange={handleSalaryChange}
+                                placeholder="예: 50,000,000"
+                                required
+                                className="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-1 text-xs text-right pr-8"
+                                style={{
+                                  background: 'var(--color-surface)',
+                                  borderColor: 'var(--color-border-strong)',
+                                  color: 'var(--color-text-primary)',
+                                }}
+                              />
+                              <span className="absolute right-3 font-semibold text-xs" style={{ color: 'var(--color-text-muted)' }}>원</span>
+                            </div>
+                          </div>
+
+                          {/* 부양가족 수 */}
+                          <div className="flex justify-between items-center py-2 border-b border-dashed" style={{ borderColor: 'var(--color-border)' }}>
+                            <span className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                              부양가족 수 (본인 포함)
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setFamilyCount(prev => Math.max(1, prev - 1))}
+                                className="w-6 h-6 rounded-full border flex items-center justify-center font-bold text-xs hover:bg-gray-100 transition-colors"
+                                style={{ borderColor: 'var(--color-border-strong)', color: 'var(--color-text-primary)' }}
+                              >
+                                -
+                              </button>
+                              <span className="font-bold text-xs w-4 text-center">{familyCount}</span>
+                              <button
+                                type="button"
+                                onClick={() => setFamilyCount(prev => prev + 1)}
+                                className="w-6 h-6 rounded-full border flex items-center justify-center font-bold text-xs hover:bg-gray-100 transition-colors"
+                                style={{ borderColor: 'var(--color-border-strong)', color: 'var(--color-text-primary)' }}
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 아코디언 추가정보 */}
+                          <div className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--color-border)' }}>
+                            <button
+                              type="button"
+                              onClick={() => setIsAccordionOpen(!isAccordionOpen)}
+                              className="w-full px-3 py-1.5 flex justify-between items-center text-xs font-semibold hover:bg-gray-50 transition-colors"
+                              style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-secondary)' }}
+                            >
+                              <span>추가 정보 입력 (선택)</span>
+                              <span className="material-symbols-outlined transform transition-transform" style={{ transform: isAccordionOpen ? 'rotate(180deg)' : 'none', fontSize: '15px' }}>
+                                expand_more
+                              </span>
+                            </button>
+                            {isAccordionOpen && (
+                              <div className="p-3 flex flex-col gap-2.5" style={{ background: 'var(--color-surface)' }}>
+                                <div className="flex flex-col gap-1.5">
+                                  <label className="text-[10px] font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                                    미리 낸 세금 (기납부세액)
+                                  </label>
+                                  <div className="relative flex items-center">
+                                    <input
+                                      type="text"
+                                      value={prepaidTaxInput}
+                                      onChange={handlePrepaidTaxChange}
+                                      placeholder="원천징수영수증 소득세 결정세액"
+                                      className="w-full px-3 py-1.5 rounded border focus:outline-none focus:ring-1 text-[11px] text-right pr-8"
+                                      style={{
+                                        background: 'var(--color-surface)',
+                                        borderColor: 'var(--color-border-strong)',
+                                        color: 'var(--color-text-primary)',
+                                      }}
+                                    />
+                                    <span className="absolute right-3 font-semibold text-[10px]" style={{ color: 'var(--color-text-muted)' }}>원</span>
+                                  </div>
+                                  <p className="text-[9px] leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                                    ※ 미입력 시 결정세액의 1.05배를 자동 추정 적용합니다.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={calcLoading}
+                            className="w-full py-2.5 rounded-lg text-white font-bold text-xs transition-all hover:opacity-90 flex items-center justify-center cursor-pointer"
+                            style={{
+                              background: 'var(--color-primary)',
+                              boxShadow: '0 2px 8px rgba(79,70,229,0.2)',
+                            }}
+                          >
+                            {calcLoading ? '계산하는 중...' : '예상 연말정산 결과 보기'}
+                          </button>
+                        </form>
+
+                        {/* 계산 결과 노출 */}
+                        {calcResult && (
+                          <div
+                            className="mt-5 p-4 rounded-lg border text-xs"
+                            style={{
+                              background: 'var(--color-surface-2)',
+                              borderColor: calcResult.status === 'REFUND' ? 'var(--color-secondary)' : 'var(--color-error)',
+                            }}
+                          >
+                            <div className="text-center flex flex-col items-center gap-1.5">
+                              <h4 className="font-extrabold text-[13px]">
+                                {calcResult.status === 'REFUND' ? (
+                                  <span style={{ color: 'var(--color-secondary)' }}>
+                                    🎉 약 {Math.abs(calcResult.totalDifference).toLocaleString('ko-KR')}원 환급 예상!
+                                  </span>
+                                ) : (
+                                  <span style={{ color: 'var(--color-error)' }}>
+                                    ⚠️ 약 {calcResult.totalDifference.toLocaleString('ko-KR')}원 추가납부 예상
+                                  </span>
+                                )}
+                              </h4>
+                              <p className="text-[9px]" style={{ color: 'var(--color-text-muted)' }}>
+                                (지방소득세 10% 포함 최종 차액)
+                              </p>
+                            </div>
+
+                            {/* 상세 내역 아코디언 */}
+                            <div className="mt-3 border-t pt-2.5" style={{ borderColor: 'var(--color-border)' }}>
+                              <button
+                                type="button"
+                                onClick={() => setIsCalcResultOpen(!isCalcResultOpen)}
+                                className="w-full flex justify-between items-center text-[11px] font-bold py-1"
+                                style={{ color: 'var(--color-text-primary)' }}
+                              >
+                                <span>상세 정산 요약 내역</span>
+                                <span className="material-symbols-outlined transform transition-transform" style={{ transform: isCalcResultOpen ? 'rotate(180deg)' : 'none', fontSize: '14px' }}>
+                                  expand_more
+                                </span>
+                              </button>
+
+                              {isCalcResultOpen && (
+                                <div className="mt-2.5 flex flex-col gap-1.5 text-[11px]">
+                                  <div className="flex justify-between py-1 border-b border-dashed" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span style={{ color: 'var(--color-text-muted)' }}>세전 연봉 (총급여)</span>
+                                    <span className="font-semibold">{calcResult.grossSalary.toLocaleString('ko-KR')}원</span>
+                                  </div>
+                                  <div className="flex justify-between py-1 border-b border-dashed" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span style={{ color: 'var(--color-text-muted)' }}>과세표준</span>
+                                    <span className="font-semibold">{calcResult.taxBase.toLocaleString('ko-KR')}원</span>
+                                  </div>
+                                  <div className="flex justify-between py-1 border-b border-dashed" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span style={{ color: 'var(--color-text-muted)' }}>산출세액</span>
+                                    <span className="font-semibold">{calcResult.calculatedTax.toLocaleString('ko-KR')}원</span>
+                                  </div>
+                                  <div className="flex justify-between py-1 border-b border-dashed text-[10px]" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span style={{ color: 'var(--color-text-muted)' }}>└ 근로소득 세액공제</span>
+                                    <span className="font-medium" style={{ color: 'var(--color-error)' }}>-{calcResult.earnedIncomeTaxCredit.toLocaleString('ko-KR')}원</span>
+                                  </div>
+                                  <div className="flex justify-between py-1 border-b border-dashed text-[10px]" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span style={{ color: 'var(--color-text-muted)' }}>└ 연금계좌 세액공제</span>
+                                    <span className="font-medium" style={{ color: 'var(--color-error)' }}>-{calcResult.pensionTaxCredit.toLocaleString('ko-KR')}원</span>
+                                  </div>
+                                  <div className="flex justify-between py-1 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>결정세액 (소득세)</span>
+                                    <span className="font-bold" style={{ color: 'var(--color-text-primary)' }}>{calcResult.finalTax.toLocaleString('ko-KR')}원</span>
+                                  </div>
+                                  <div className="flex justify-between py-1 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span style={{ color: 'var(--color-text-muted)' }}>기납부세액 (미리 낸 세금)</span>
+                                    <span className="font-medium">{calcResult.estimatedPrepaidTax.toLocaleString('ko-KR')}원</span>
+                                  </div>
+                                  <div className="flex justify-between py-1.5 font-bold text-xs mt-0.5">
+                                    <span style={{ color: 'var(--color-text-primary)' }}>최종 정산 예상액</span>
+                                    <span style={{ color: calcResult.status === 'REFUND' ? 'var(--color-secondary)' : 'var(--color-error)' }}>
+                                      {calcResult.status === 'REFUND' ? `환급 ${Math.abs(calcResult.totalDifference).toLocaleString('ko-KR')}원` : `추가납부 ${calcResult.totalDifference.toLocaleString('ko-KR')}원`}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 법적 및 디펜스용 안내 문구 */}
+                        <div className="mt-4 p-3 rounded border text-[9px] leading-relaxed" style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                          <p className="font-bold mb-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+                            ⚠️ 연말정산 간이 시뮬레이션 결과 안내
+                          </p>
+                          <ul className="list-disc pl-3 flex flex-col gap-0.5">
+                            <li>기본 소득공제(식대, 4대보험, 인적공제) 및 연금 세액공제만을 반영한 시뮬레이터입니다.</li>
+                            <li>실제 정산 결과는 개별 실증공제 항목(신용카드, 의료비, 월세 등)에 따라 크게 달라질 수 있습니다.</li>
+                            <li>정확한 세액 확인은 국세청 홈택스 또는 세무사 상담을 통해 확인하시기 바랍니다.</li>
+                          </ul>
+                        </div>
                       </div>
                     </>
                   ) : (
