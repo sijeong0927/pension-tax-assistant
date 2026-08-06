@@ -1,12 +1,10 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from supabase import Client
 from datetime import datetime, timezone
 
 from app.db.session import get_db
-from app.models.tax_savings import TaxSavings
-from app.models.user import User
 from app.core.security import get_current_user, get_current_user_optional
 
 router = APIRouter()
@@ -28,70 +26,80 @@ class TaxSavingsResponse(BaseModel):
     data: Optional[dict] = None
 
 @router.post("/tax-savings", response_model=TaxSavingsResponse)
-def save_tax_savings(request: TaxSavingsRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def save_tax_savings(
+    request: TaxSavingsRequest,
+    db: Client = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
     try:
-        # Upsert logic - prefer user_id
-        savings_record = db.query(TaxSavings).filter(TaxSavings.user_id == current_user.id).first()
+        user_id = current_user.get("id")
         
-        # Fallback to session_id migration
-        if not savings_record:
-            savings_record = db.query(TaxSavings).filter(TaxSavings.session_id == request.session_id).first()
+        # 1. user_id 기반 기록 조회
+        res = db.table("tax_savings").select("*").eq("user_id", user_id).execute()
+        records = res.data
         
-        if savings_record:
-            savings_record.user_id = current_user.id
-            savings_record.income_range = request.income_range
-            savings_record.pension_savings_paid = request.pension_savings_paid
-            savings_record.irp_paid = request.irp_paid
-            savings_record.deductible_pension_savings = request.deductible_pension_savings
-            savings_record.deductible_irp = request.deductible_irp
-            savings_record.deductible_amount = request.deductible_amount
-            savings_record.gross_tax_credit = request.gross_tax_credit
-            savings_record.estimated_refund = request.estimated_refund
-            savings_record.updated_at = datetime.now(timezone.utc)
+        # 2. user_id로 없을 시 session_id 조회
+        if not records:
+            res_session = db.table("tax_savings").select("*").eq("session_id", request.session_id).execute()
+            records = res_session.data
+        
+        now_str = datetime.now(timezone.utc).isoformat()
+        
+        save_payload = {
+            "session_id": request.session_id,
+            "user_id": user_id,
+            "income_range": request.income_range,
+            "pension_savings_paid": request.pension_savings_paid,
+            "irp_paid": request.irp_paid,
+            "deductible_pension_savings": request.deductible_pension_savings,
+            "deductible_irp": request.deductible_irp,
+            "deductible_amount": request.deductible_amount,
+            "gross_tax_credit": request.gross_tax_credit,
+            "estimated_refund": request.estimated_refund,
+            "updated_at": now_str,
+        }
+
+        if records:
+            # Update 기존 기록
+            record_id = records[0]["id"]
+            db.table("tax_savings").update(save_payload).eq("id", record_id).execute()
         else:
-            savings_record = TaxSavings(
-                session_id=request.session_id,
-                user_id=current_user.id,
-                income_range=request.income_range,
-                pension_savings_paid=request.pension_savings_paid,
-                irp_paid=request.irp_paid,
-                deductible_pension_savings=request.deductible_pension_savings,
-                deductible_irp=request.deductible_irp,
-                deductible_amount=request.deductible_amount,
-                gross_tax_credit=request.gross_tax_credit,
-                estimated_refund=request.estimated_refund,
-            )
-            db.add(savings_record)
-        
-        db.commit()
-        db.refresh(savings_record)
+            # Insert 신규 기록
+            save_payload["created_at"] = now_str
+            db.table("tax_savings").insert(save_payload).execute()
         
         return TaxSavingsResponse(success=True, message="Tax savings data saved successfully.")
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/tax-savings/{session_id}", response_model=TaxSavingsResponse)
-def get_tax_savings(session_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user_optional)):
+def get_tax_savings(
+    session_id: str,
+    db: Client = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
     if current_user:
-        savings_record = db.query(TaxSavings).filter(TaxSavings.user_id == current_user.id).first()
+        user_id = current_user.get("id")
+        res = db.table("tax_savings").select("*").eq("user_id", user_id).execute()
     else:
-        savings_record = db.query(TaxSavings).filter(TaxSavings.session_id == session_id).first()
+        res = db.table("tax_savings").select("*").eq("session_id", session_id).execute()
     
-    if not savings_record:
+    records = res.data
+    if not records:
         return TaxSavingsResponse(success=False, message="No data found for this session.")
         
+    savings_record = records[0]
     return TaxSavingsResponse(
         success=True,
         message="Tax savings data retrieved successfully.",
         data={
-            "income_range": savings_record.income_range,
-            "pension_savings_paid": savings_record.pension_savings_paid,
-            "irp_paid": savings_record.irp_paid,
-            "deductible_pension_savings": savings_record.deductible_pension_savings,
-            "deductible_irp": savings_record.deductible_irp,
-            "deductible_amount": savings_record.deductible_amount,
-            "gross_tax_credit": savings_record.gross_tax_credit,
-            "estimated_refund": savings_record.estimated_refund,
+            "income_range": savings_record["income_range"],
+            "pension_savings_paid": savings_record["pension_savings_paid"],
+            "irp_paid": savings_record["irp_paid"],
+            "deductible_pension_savings": savings_record["deductible_pension_savings"],
+            "deductible_irp": savings_record["deductible_irp"],
+            "deductible_amount": savings_record["deductible_amount"],
+            "gross_tax_credit": savings_record["gross_tax_credit"],
+            "estimated_refund": savings_record["estimated_refund"],
         }
     )

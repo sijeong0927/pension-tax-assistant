@@ -50,6 +50,41 @@ interface DiagnosisResult {
 const formatWon = (n: number) =>
   n === 0 ? '0원' : `${n.toLocaleString('ko-KR')}원`;
 
+// ─── Custom Hook: Count-Up Animation ──────────────────────────────────────────
+function useCountUp(target: number, duration: number = 550) {
+  const [count, setCount] = useState(target);
+
+  useEffect(() => {
+    let startTimestamp: number | null = null;
+    const startValue = count;
+    const endValue = target;
+
+    if (startValue === endValue) return;
+
+    let animationFrameId: number;
+
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      // Ease-out cubic
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(startValue + (endValue - startValue) * easeProgress);
+
+      setCount(current);
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(step);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(step);
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [target, duration]);
+
+  return count;
+}
+
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -251,15 +286,7 @@ function Step1({
           className={`salary-card${selected === 'under' ? ' selected' : ''}`}
           onClick={() => pick('under')}
         >
-          <div className="badge">
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: '12px' }}
-            >
-              check_circle
-            </span>
-            일반적
-          </div>
+
           <div className="card-icon">
             <span
               className="material-symbols-outlined"
@@ -352,8 +379,8 @@ function Step2({
       <div className="flex flex-col gap-4 w-full max-w-xl mx-auto">
 
         {/* 연금저축 */}
-        <div className={`account-row${formData.hasPensionSavings ? ' active' : ''}`}>
-          <label className="flex items-center justify-between cursor-pointer gap-4">
+        <div className={`account-row transition-all duration-300 ${formData.hasPensionSavings ? 'border-indigo-600 shadow-md' : 'border-gray-200'}`}>
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -385,21 +412,37 @@ function Step2({
                 </p>
               </div>
             </div>
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={formData.hasPensionSavings}
-                onChange={(e) => onUpdate({ hasPensionSavings: e.target.checked })}
-              />
-              <div className="toggle-track" />
-              <div className="toggle-thumb" />
-            </label>
-          </label>
+            
+            <div className="flex bg-gray-100/80 rounded-full p-1 border border-gray-200/60 shadow-inner shrink-0">
+              <button
+                type="button"
+                onClick={() => onUpdate({ hasPensionSavings: false })}
+                className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                  !formData.hasPensionSavings
+                    ? 'bg-white text-gray-800 shadow-sm ring-1 ring-gray-200/50'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                없음
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdate({ hasPensionSavings: true })}
+                className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                  formData.hasPensionSavings
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                있음
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* IRP */}
-        <div className={`account-row${formData.hasIRP ? ' active' : ''}`}>
-          <label className="flex items-center justify-between cursor-pointer gap-4">
+        <div className={`account-row transition-all duration-300 ${formData.hasIRP ? 'border-indigo-600 shadow-md' : 'border-gray-200'}`}>
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -431,16 +474,32 @@ function Step2({
                 </p>
               </div>
             </div>
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={formData.hasIRP}
-                onChange={(e) => onUpdate({ hasIRP: e.target.checked })}
-              />
-              <div className="toggle-track" />
-              <div className="toggle-thumb" />
-            </label>
-          </label>
+            
+            <div className="flex bg-gray-100/80 rounded-full p-1 border border-gray-200/60 shadow-inner shrink-0">
+              <button
+                type="button"
+                onClick={() => onUpdate({ hasIRP: false })}
+                className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                  !formData.hasIRP
+                    ? 'bg-white text-gray-800 shadow-sm ring-1 ring-gray-200/50'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                없음
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdate({ hasIRP: true })}
+                className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                  formData.hasIRP
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                있음
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* 아직 없는 경우 안내 */}
@@ -540,10 +599,18 @@ function Step3({
   const [irp, setIrp] = useState<number>(result.irp_paid);
   const [sim, setSim] = useState<DiagnosisResult>(result);
   const [simError, setSimError] = useState<string | null>(null);
+  const [selectedGoal, setSelectedGoal] = useState<number | null>(null);
   
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const router = useRouter();
+
+  // ── 1. Count-up Animation ──
+  const animatedRefund = useCountUp(sim.estimated_refund);
+  const animatedDeductible = useCountUp(sim.deductible_amount);
+
+  // ── 3. Max Limit (900만원) Detection ──
+  const isMaxLimit = sim.deductible_amount >= 9_000_000;
 
   const handleSave = async () => {
     if (!isAuthenticated()) {
@@ -563,7 +630,7 @@ function Step3({
       const { saveTaxSavings } = await import('@/lib/api');
       const success = await saveTaxSavings({
         session_id: sessionId,
-        income_range: sim.income_range, // Save the latest simulated result
+        income_range: sim.income_range,
         pension_savings_paid: sim.pension_savings_paid,
         irp_paid: sim.irp_paid,
         deductible_pension_savings: sim.deductible_pension_savings,
@@ -587,9 +654,6 @@ function Step3({
 
   const isNoBenefit = sim.income_range === 'no_benefit';
   const isHighRate = sim.deduction_rate > 0.14;
-  const recommendedAdditional =
-    sim.recommended_additional_allocation.pension_savings +
-    sim.recommended_additional_allocation.irp;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -620,15 +684,22 @@ function Step3({
       controller.abort();
     };
   }, [salary, pension, irp]);
+
   const handlePensionChange = (v: number) => {
+    setSelectedGoal(null);
     setPension(v);
     const nextIrp = clampIrpToCombinedLimit(v, irp);
     if (irp !== nextIrp) setIrp(nextIrp);
   };
 
   const handleIrpChange = (v: number) => {
+    setSelectedGoal(null);
     setIrp(clampIrpToCombinedLimit(pension, v));
   };
+
+  // ── 2. Limit & Rate Fill Percentages ──
+  const totalLimitPercent = Math.min((sim.deductible_amount / 9_000_000) * 100, 100);
+  const rateGaugePercent = Math.min((sim.deduction_rate / 0.165) * 100, 100);
 
   return (
     <div className={animClass}>
@@ -643,14 +714,75 @@ function Step3({
             color: 'var(--color-on-surface)',
           }}
         >
-          절세택시 도착! 진단 결과예요 🚕
+          절세택시 미터기 동작 중! 실시간 절세 진단 🚕
         </h2>
         <p className="text-sm mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>
-          슬라이더로 조건을 바꾸면 결과가 실시간으로 바뀌어요
+          슬라이더를 움직여 나의 올해 목표 납입액과 예상 환급액을 맞춰보세요.
         </p>
       </div>
 
       <div className="flex flex-col gap-5 w-full max-w-xl mx-auto">
+
+        {/* ── 목표별 최적 절세 가이드 ── */}
+        <div className="bg-white/80 backdrop-blur-md rounded-2xl p-5 border border-indigo-100 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full mix-blend-multiply blur-2xl opacity-60 pointer-events-none translate-x-1/3 -translate-y-1/3"></div>
+          
+          <div className="flex items-center gap-2 mb-4 relative z-10">
+            <span className="material-symbols-outlined text-indigo-600" style={{ fontVariationSettings: "'FILL' 1" }}>
+              target
+            </span>
+            <h3 className="font-bold text-gray-800">목표 납입액을 선택해보세요</h3>
+          </div>
+          
+          <div className="relative z-10">
+            <select
+              value={selectedGoal || ""}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                if (val) {
+                  setSelectedGoal(val);
+                  setPension(Math.min(val, 6_000_000));
+                  setIrp(Math.max(0, val - 6_000_000));
+                } else {
+                  setSelectedGoal(null);
+                  setPension(0);
+                  setIrp(0);
+                }
+              }}
+              className="w-full appearance-none bg-white/90 border border-indigo-200 text-gray-800 font-semibold text-[15px] py-3.5 px-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-all cursor-pointer hover:bg-white"
+            >
+              <option value="" disabled>원하는 목표 납입액을 선택하세요</option>
+              {Array.from({ length: 9 }, (_, i) => (i + 1) * 100_0000).map(amt => (
+                <option key={amt} value={amt}>
+                  연 {amt / 10000}만 원 (월 약 {Math.round(amt / 10000 / 12)}만 원)
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-indigo-500">
+              <span className="material-symbols-outlined text-[20px]">expand_more</span>
+            </div>
+          </div>
+
+          {selectedGoal && (
+            <div className="mt-3 p-3 bg-indigo-50/80 rounded-xl border border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 relative z-10 animate-in fade-in slide-in-from-top-1">
+              <span className="text-[13px] font-semibold text-indigo-800 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[16px]">tips_and_updates</span>
+                최적의 계좌 배분
+              </span>
+              <div className="flex items-center gap-1.5 text-[14px] font-bold text-indigo-600 bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm">
+                <span className="material-symbols-outlined text-[16px]">
+                  {selectedGoal > 6_000_000 ? 'account_balance' : 'savings'}
+                </span>
+                {selectedGoal > 6_000_000 
+                  ? `연금저축 600만 원 + IRP ${(selectedGoal - 6_000_000) / 10000}만 원`
+                  : `연금저축 ${selectedGoal / 10000}만 원`}
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-gray-500 mt-4 text-center">
+            목표를 선택하면 아래 슬라이더에 추천 금액이 바로 세팅됩니다!
+          </p>
+        </div>
 
         {/* ── 시뮬레이터 패널 ── */}
         <div className="sim-panel">
@@ -713,122 +845,116 @@ function Step3({
           </div>
         </div>
 
-        {/* ── 핵심 세액공제 효과 카드 (슬라이더 연동) ── */}
-        <div className="result-highlight">
-          <div className="result-badge">
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}
-            >
-              local_taxi
-            </span>
-            {isNoBenefit
-              ? '세액공제 실현 가능성 안내'
-              : isHighRate
-                ? '우대 공제율 16.5% 적용'
-                : '기본 공제율 13.2% 적용'}
-          </div>
-          {isNoBenefit ? (
-            <p className="text-lg font-bold leading-relaxed">
-              현재 소득 기준으로는 세액공제 실현 가능성이 낮습니다
-            </p>
-          ) : (
-            <>
-              <p className="text-sm font-medium opacity-80 mb-1">적용 세액공제율</p>
-              <p
-                className="font-bold"
-                style={{
-                  fontFamily: "'Hanken Grotesk', sans-serif",
-                  fontSize: '56px',
-                  lineHeight: 1.1,
-                  letterSpacing: '-0.03em',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {(sim.deduction_rate * 100).toFixed(1)}%
-              </p>
-              <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-                <p className="text-sm opacity-75 mb-1">예상 세액 공제 효과</p>
-                <p
-                  className="font-bold"
-                  style={{
-                    fontFamily: "'Hanken Grotesk', sans-serif",
-                    fontSize: '28px',
-                    letterSpacing: '-0.02em',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {formatWon(sim.estimated_refund)}
-                </p>
+        {/* ── 4. Hero 카드 Soft Glow & Breathing Pulse (+ 3. Sparkle & Pop 효과) ── */}
+        <div
+          className="relative overflow-hidden rounded-3xl p-8 text-white hero-pulse-glow transition-all duration-300"
+          style={{
+            background: 'linear-gradient(135deg, #3730A3 0%, #4F46E5 50%, #7C3AED 100%)',
+            boxShadow: '0 0 35px rgba(99, 102, 241, 0.18), 0 12px 36px rgba(79, 70, 229, 0.25)',
+          }}
+        >
+          {/* Subtle glow/pattern behind */}
+          <div className="absolute -top-24 -right-24 w-48 h-48 bg-white opacity-10 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-indigo-300 opacity-20 rounded-full blur-3xl"></div>
+          
+          <div className="relative z-10">
+            <div className="flex items-center justify-between gap-2 mb-6">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[13px] font-semibold shadow-sm border border-white/10">
+                <span className="material-symbols-outlined text-[16px]">local_taxi</span>
+                {isNoBenefit ? '세액공제 실현 가능성 안내' : isHighRate ? '우대 공제율 16.5% 적용' : '기본 공제율 13.2% 적용'}
               </div>
-            </>
-          )}
+
+              {/* ── 3. Sparkle Pop Badge (900만원 달성 시) ── */}
+              {isMaxLimit && (
+                <div className="sparkle-pop-anim inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400 text-indigo-950 rounded-full text-[12px] font-extrabold shadow-md border border-amber-300">
+                  <span>✨ 최대 한도 달성!</span>
+                </div>
+              )}
+            </div>
+            
+            {isNoBenefit ? (
+              <p className="text-xl font-bold leading-relaxed pb-4">
+                현재 소득 기준으로는<br/>세액공제 실현 가능성이 낮습니다
+              </p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium text-indigo-100 drop-shadow-sm flex items-center gap-1.5">
+                  예상 세액 공제 효과
+                  {isMaxLimit && <span className="text-amber-300 text-xs">🎉 최대 환급액 달성</span>}
+                </p>
+                
+                {/* ── 1. Count-up Animated Refund Number ── */}
+                <p className="font-extrabold text-[42px] leading-tight tracking-tight drop-shadow-md">
+                  {formatWon(animatedRefund)}
+                </p>
+                
+                {/* ── 2. Visual Indicator (세액공제율 / 한도 충전 게이지 바) ── */}
+                <div className="mt-6 pt-5 border-t border-white/20 space-y-3">
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className="text-indigo-100">총 납입 한도 충전율 (900만원)</span>
+                    <span className="text-white font-bold">{totalLimitPercent.toFixed(0)}%</span>
+                  </div>
+                  {/* Gauge Bar */}
+                  <div className="w-full bg-white/20 rounded-full h-2.5 overflow-hidden p-0.5 backdrop-blur-sm">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ease-out ${
+                        isMaxLimit ? 'bg-gradient-to-r from-amber-300 to-yellow-400 shadow-sm' : 'bg-gradient-to-r from-emerald-400 to-teal-300'
+                      }`}
+                      style={{ width: `${totalLimitPercent}%` }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="text-indigo-200">적용 공제율 게이지</span>
+                    <span className="font-bold text-sm bg-white/20 px-2.5 py-0.5 rounded-lg backdrop-blur-md">
+                      {(sim.deduction_rate * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── 납입 상세 (슬라이더 연동) ── */}
-        <div className="result-card">
-          <p className="font-semibold text-sm mb-3" style={{ color: 'var(--color-on-surface-variant)' }}>
-            납입 상세
-          </p>
-          <div className="result-metric">
-            <span style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
-              공제 대상 연금저축
-            </span>
-            <span className="font-semibold" style={{ color: 'var(--color-on-surface)', fontSize: '15px' }}>
-              {formatWon(sim.deductible_pension_savings)}
-            </span>
+        <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <h3 className="font-bold text-gray-800 mb-5 flex items-center gap-2">
+            <span className="material-symbols-outlined text-indigo-500">analytics</span>
+            납입 상세 내역
+          </h3>
+          
+          <div className="space-y-4">
+            {/* 연금저축 */}
+            <div>
+              <div className="flex justify-between text-[13px] mb-2">
+                <span className="text-gray-600 font-medium">연금저축 (공제대상)</span>
+                <span className="font-bold text-gray-900">{formatWon(sim.deductible_pension_savings)}</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                <div className="bg-indigo-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${Math.min((sim.deductible_pension_savings / 6000000) * 100, 100)}%` }}></div>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1.5 text-right font-medium">한도 600만 원</p>
+            </div>
+            
+            {/* IRP */}
+            <div>
+              <div className="flex justify-between text-[13px] mb-2">
+                <span className="text-gray-600 font-medium">IRP (공제대상)</span>
+                <span className="font-bold text-gray-900">{formatWon(sim.deductible_irp)}</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                <div className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${Math.min((sim.deductible_irp / 9000000) * 100, 100)}%` }}></div>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1.5 text-right font-medium">합산 한도 900만 원</p>
+            </div>
           </div>
-          <div className="result-metric">
-            <span style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
-              공제 대상 IRP
-            </span>
-            <span className="font-semibold" style={{ color: 'var(--color-on-surface)', fontSize: '15px' }}>
-              {formatWon(sim.deductible_irp)}
-            </span>
-          </div>
-          <div className="result-metric">
-            <span className="font-bold" style={{ color: 'var(--color-on-surface)', fontSize: '14px' }}>
-              총 공제 대상 납입액
-            </span>
-            <span className="font-bold" style={{ color: 'var(--color-primary)', fontSize: '16px' }}>
-              {formatWon(sim.deductible_amount)}
-            </span>
+          
+          <div className="mt-6 pt-5 border-t border-gray-100/80 flex justify-between items-center">
+            <span className="font-bold text-gray-700">총 공제 대상 납입액</span>
+            <span className="font-extrabold text-indigo-600 text-[18px] tracking-tight">{formatWon(sim.deductible_amount)}</span>
           </div>
         </div>
 
-        {/* ── 추가 납입 여력 ── */}
-        {sim.additional_refund_available > 0 && (
-          <div
-            className="result-card"
-            style={{ borderColor: 'rgba(108,248,187,0.4)', background: 'rgba(108,248,187,0.04)' }}
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ background: 'rgba(0,108,73,0.1)' }}
-              >
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontSize: '18px', color: 'var(--color-secondary)', fontVariationSettings: "'FILL' 1" }}
-                >
-                  tips_and_updates
-                </span>
-              </div>
-              <div>
-                <p className="font-semibold text-sm" style={{ color: 'var(--color-secondary)' }}>
-                  추가 납입 여력이 있어요!
-                </p>
-                <p className="text-sm mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>
-                  {formatWon(recommendedAdditional)} 더 납입하면{' '}
-                  <strong style={{ color: 'var(--color-on-surface)' }}>
-                    {formatWon(sim.additional_refund_available)}
-                  </strong>{' '}
-                  예상 세액 공제 효과가 추가됩니다.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {simError && (
           <p className="text-center text-sm" style={{ color: '#ba1a1a' }}>
@@ -845,34 +971,40 @@ function Step3({
         </p>
 
         {/* CTA buttons */}
-        <button
-          onClick={handleSave}
-          disabled={isSaving || saveSuccess}
-          className="cta-btn flex justify-center mb-3"
-          style={{
-            background: saveSuccess ? 'var(--color-secondary)' : 'var(--color-primary)',
-            color: 'white',
-            boxShadow: '0 4px 12px rgba(53,37,205,0.2)',
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-            {saveSuccess ? 'check_circle' : 'save'}
-          </span>
-          {saveSuccess ? '저장 완료!' : isSaving ? '저장 중...' : '결과 저장하기'}
-        </button>
+        <div className="mt-6 space-y-3 pb-8">
+          <Link
+            href="/chat"
+            className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-bold text-white transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-indigo-200"
+            style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)' }}
+          >
+            <span className="material-symbols-outlined text-[20px]">smart_toy</span>
+            AI 기사님과 세부 상담하기
+          </Link>
 
-        <Link
-          href="/chat"
-          className="cta-btn mb-3"
-          style={{ textDecoration: 'none', justifyContent: 'center', background: 'var(--color-surface)', color: 'var(--color-on-surface)', border: '1px solid rgba(199,196,216,0.5)' }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>smart_toy</span>
-          AI 기사님과 세부 상담하기
-        </Link>
-        <button className="cta-btn cta-btn--secondary" onClick={onReset}>
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>refresh</span>
-          다시 진단하기
-        </button>
+          <div className="flex gap-3">
+            <button
+              onClick={handleSave}
+              disabled={isSaving || saveSuccess}
+              className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-semibold transition-all border-2 ${
+                saveSuccess 
+                  ? 'bg-emerald-50 border-emerald-500 text-emerald-600'
+                  : 'bg-white border-indigo-100 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 shadow-sm'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                {saveSuccess ? 'check_circle' : 'save'}
+              </span>
+              {saveSuccess ? '저장 완료!' : isSaving ? '저장 중...' : '결과 저장하기'}
+            </button>
+            <button 
+              onClick={onReset}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-semibold bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100 transition-all"
+            >
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
+              다시 진단하기
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

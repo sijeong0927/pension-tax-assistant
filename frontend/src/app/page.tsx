@@ -26,16 +26,24 @@ export default function Home() {
   }, []);
 
   return (
-    <>
+    <div className="min-h-screen flex flex-col relative overflow-hidden bg-transparent">
+
       <Header />
 
-      <main className="flex-grow flex flex-col items-center justify-center px-4 py-10 md:py-16">
+      <main className="flex-grow flex flex-col items-center justify-center px-4 py-10 md:py-16 z-10">
         <div className="w-full max-w-[800px] flex flex-col items-center text-center gap-10">
 
           {/* ── Hero ── */}
           <div className="flex flex-col items-center gap-6">
-            {/* Icon circle */}
-            <div className="hero-icon-circle">
+            {/* Icon circle - Subtle Float Animation */}
+            <div className="hero-icon-circle shadow-2xl animate-in fade-in zoom-in duration-700 ease-out fill-mode-both hover:scale-105 transition-transform" style={{ animationName: 'float-and-fade' }}>
+              <style>{`
+                @keyframes float-and-fade {
+                  0% { opacity: 0; transform: translateY(20px) scale(0.9); }
+                  50% { opacity: 1; transform: translateY(-5px) scale(1); }
+                  100% { opacity: 1; transform: translateY(0) scale(1); }
+                }
+              `}</style>
               <span
                 className="material-symbols-outlined"
                 style={{
@@ -49,15 +57,14 @@ export default function Home() {
             </div>
 
             {/* Headline */}
-            <h1 className="hero-headline">
+            <h1 className="hero-headline animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150 fill-mode-both ease-out">
               {mounted && userName && (
                 <span className="block mb-2 text-3xl font-bold" style={{ color: "var(--color-on-surface)" }}>
                   {userName}님!
                 </span>
               )}
-              2026 연금 세액공제<br />
-              AI 빠른 경로 안내<br />
-              <span style={{ color: "var(--color-primary)" }}>절세택시</span>
+              2026 연금 세액공제 AI 빠른 경로 안내<br />
+              <span style={{ color: "var(--color-primary)", display: "inline-block" }}>절세택시</span>
               <br />
               <span className="hero-subheadline">
                 (Tax-i : Tax + AI)
@@ -65,28 +72,18 @@ export default function Home() {
             </h1>
 
             {/* Subtext */}
-            <p className="hero-body">
+            <p className="hero-body animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both ease-out">
               &ldquo;기사님, 연금저축이랑 IRP로 세금 얼마나 아껴요?&rdquo;<br />
               돌아가시지 말고 1초 만에 최적의 절세 경로로 안내받으세요.
             </p>
-
-            {mounted && !loggedIn && (
-              <Link 
-                href="/login" 
-                className="mt-2 px-8 py-3.5 rounded-full font-bold text-white shadow-lg transition-transform hover:-translate-y-1"
-                style={{ background: "var(--color-primary)" }}
-              >
-                로그인 / 회원가입
-              </Link>
-            )}
           </div>
 
           {/* ── Action Cards ── */}
           <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-
+            
             {/* Card 1 – 진단 */}
-            <Link href="/diagnose" className="action-card action-card--primary">
-              <div className="card-icon-wrap card-icon-wrap--primary">
+            <Link href="/diagnose" className="action-card action-card--primary shadow-premium hover:shadow-premium-hover transition-all duration-300 group glass-panel rounded-3xl animate-in fade-in slide-in-from-bottom-12 duration-700 delay-500 fill-mode-both ease-out">
+              <div className="card-icon-wrap card-icon-wrap--primary group-hover:scale-110 transition-transform duration-300">
                 <span
                   className="material-symbols-outlined"
                   style={{
@@ -100,14 +97,14 @@ export default function Home() {
               </div>
               <h3 className="card-title">1초 만에 절세택시 탑승하기</h3>
               <p className="card-body">
-                몇 가지 질문으로 예상 세액 공제 효과를 빠르게 확인하세요.
+                몇 가지 질문으로 예상 세액 공제 효과를<br />빠르게 확인하세요.
               </p>
-              <div className="card-cta card-cta--filled">바로 시작하기</div>
+              <div className="card-cta card-cta--filled group-hover:-translate-y-1 transition-transform duration-300">바로 진단하기</div>
             </Link>
 
             {/* Card 2 – 챗봇 */}
-            <Link href="/chat" className="action-card">
-              <div className="card-icon-wrap card-icon-wrap--secondary">
+            <Link href="/chat" className="action-card shadow-premium hover:shadow-premium-hover transition-all duration-300 group glass-panel rounded-3xl animate-in fade-in slide-in-from-bottom-12 duration-700 delay-700 fill-mode-both ease-out">
+              <div className="card-icon-wrap card-icon-wrap--secondary group-hover:scale-110 transition-transform duration-300">
                 <span
                   className="material-symbols-outlined"
                   style={{
@@ -121,9 +118,9 @@ export default function Home() {
               </div>
               <h3 className="card-title">AI 기사님과 1:1 절세 상담</h3>
               <p className="card-body">
-                궁금한 세금 질문, 미터기 올라갈 걱정 없이 물어보세요
+                궁금한 세금 질문,<br />미터기 올라갈 걱정 없이 물어보세요.
               </p>
-              <div className="card-cta card-cta--outlined">상담 시작하기</div>
+              <div className="card-cta card-cta--outlined group-hover:-translate-y-1 transition-transform duration-300 bg-white">상담 시작하기</div>
             </Link>
 
           </div>
@@ -131,6 +128,6 @@ export default function Home() {
       </main>
 
       <Footer />
-    </>
+    </div>
   );
 }
