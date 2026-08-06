@@ -7,12 +7,10 @@
  *   POST /api/v1/chat/query                 → AI 질의 및 저장
  */
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  'https://tax-i-ef90.onrender.com';
-
+import { API_BASE_URL } from './config';
 import { getAuthToken } from './auth';
+
+const BASE_URL = API_BASE_URL;
 
 const getHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };

@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { setAuthToken } from '@/lib/auth';
+import { API_BASE_URL } from '@/lib/config';
 
 function LoginForm() {
   const router = useRouter();
@@ -23,7 +24,7 @@ function LoginForm() {
     
     try {
       const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/signup';
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const baseUrl = API_BASE_URL;
       
       let res;
       if (isLogin) {

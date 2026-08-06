@@ -154,7 +154,7 @@ python scripts/validate_faq_pdf_links.py
 ```powershell
 Set-Location frontend
 npm ci
-$env:NEXT_PUBLIC_API_URL="http://127.0.0.1:8000"
+$env:NEXT_PUBLIC_API_URL="https://tax-i-ef90.onrender.com"
 npm run dev
 ```
 
