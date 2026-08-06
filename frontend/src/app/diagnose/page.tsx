@@ -591,10 +591,13 @@ function Step3({
   initialSalaryRange: SalaryRange;
   onReset: () => void;
 }) {
-  // 초기값: API 결과 기반
-  const [salary, setSalary] = useState<number>(
-    initialSalaryRange === 'over' ? 70_000_000 : 40_000_000,
-  );
+  // 연봉 구간 선택에 따른 슬라이더 min, max 지정
+  const isOver55 = initialSalaryRange === 'over';
+  const minSalary = isOver55 ? 55_000_000 : 0;
+  const maxSalary = isOver55 ? SALARY_MAX : 55_000_000;
+
+  // 초기값: 가장 왼쪽 (최솟값 minSalary)으로 세팅
+  const [salary, setSalary] = useState<number>(minSalary);
   const [pension, setPension] = useState<number>(result.pension_savings_paid);
   const [irp, setIrp] = useState<number>(result.irp_paid);
   const [sim, setSim] = useState<DiagnosisResult>(result);
@@ -631,6 +634,7 @@ function Step3({
       const success = await saveTaxSavings({
         session_id: sessionId,
         income_range: sim.income_range,
+        total_salary: salary,
         pension_savings_paid: sim.pension_savings_paid,
         irp_paid: sim.irp_paid,
         deductible_pension_savings: sim.deductible_pension_savings,
@@ -804,8 +808,8 @@ function Step3({
           <SimSlider
             label="총급여"
             value={salary}
-            min={0}
-            max={SALARY_MAX}
+            min={minSalary}
+            max={maxSalary}
             step={SALARY_STEP}
             onChange={setSalary}
             formatVal={(v) => `${(v / 10_000).toLocaleString('ko-KR')}만원`}

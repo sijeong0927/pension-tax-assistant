@@ -12,6 +12,7 @@ router = APIRouter()
 class TaxSavingsRequest(BaseModel):
     session_id: str
     income_range: str
+    total_salary: Optional[int] = 0
     pension_savings_paid: int
     irp_paid: int
     deductible_pension_savings: int
@@ -49,6 +50,7 @@ def save_tax_savings(
             "session_id": request.session_id,
             "user_id": user_id,
             "income_range": request.income_range,
+            "total_salary": request.total_salary or 0,
             "pension_savings_paid": request.pension_savings_paid,
             "irp_paid": request.irp_paid,
             "deductible_pension_savings": request.deductible_pension_savings,
@@ -59,14 +61,24 @@ def save_tax_savings(
             "updated_at": now_str,
         }
 
-        if records:
-            # Update 기존 기록
-            record_id = records[0]["id"]
-            db.table("tax_savings").update(save_payload).eq("id", record_id).execute()
-        else:
-            # Insert 신규 기록
-            save_payload["created_at"] = now_str
-            db.table("tax_savings").insert(save_payload).execute()
+        try:
+            if records:
+                # Update 기존 기록
+                record_id = records[0]["id"]
+                db.table("tax_savings").update(save_payload).eq("id", record_id).execute()
+            else:
+                # Insert 신규 기록
+                save_payload["created_at"] = now_str
+                db.table("tax_savings").insert(save_payload).execute()
+        except Exception:
+            # DB 컬럼(total_salary)이 아직 반영되지 않은 환경 대비 fallback
+            save_payload.pop("total_salary", None)
+            if records:
+                record_id = records[0]["id"]
+                db.table("tax_savings").update(save_payload).eq("id", record_id).execute()
+            else:
+                save_payload["created_at"] = now_str
+                db.table("tax_savings").insert(save_payload).execute()
         
         return TaxSavingsResponse(success=True, message="Tax savings data saved successfully.")
     except Exception as e:
@@ -93,13 +105,14 @@ def get_tax_savings(
         success=True,
         message="Tax savings data retrieved successfully.",
         data={
-            "income_range": savings_record["income_range"],
-            "pension_savings_paid": savings_record["pension_savings_paid"],
-            "irp_paid": savings_record["irp_paid"],
-            "deductible_pension_savings": savings_record["deductible_pension_savings"],
-            "deductible_irp": savings_record["deductible_irp"],
-            "deductible_amount": savings_record["deductible_amount"],
-            "gross_tax_credit": savings_record["gross_tax_credit"],
-            "estimated_refund": savings_record["estimated_refund"],
+            "income_range": savings_record.get("income_range", ""),
+            "total_salary": savings_record.get("total_salary", 0),
+            "pension_savings_paid": savings_record.get("pension_savings_paid", 0),
+            "irp_paid": savings_record.get("irp_paid", 0),
+            "deductible_pension_savings": savings_record.get("deductible_pension_savings", 0),
+            "deductible_irp": savings_record.get("deductible_irp", 0),
+            "deductible_amount": savings_record.get("deductible_amount", 0),
+            "gross_tax_credit": savings_record.get("gross_tax_credit", 0),
+            "estimated_refund": savings_record.get("estimated_refund", 0),
         }
     )
