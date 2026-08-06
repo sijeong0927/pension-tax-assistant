@@ -220,6 +220,7 @@ def build_pdf_documents(
                             "effective_date": source.effective_date,
                             "last_verified": source.last_verified,
                             "provenance_verified": source.provenance_verified,
+                            "target": "회사제출용",
                         },
                     )
                 )
@@ -271,7 +272,8 @@ def _snapshot_documents(
         ids = [str(document_id) for document_id in result.get("ids") or []]
         documents = [str(document) for document in result.get("documents") or []]
         metadatas = [dict(metadata or {}) for metadata in result.get("metadatas") or []]
-        embeddings = [list(embedding) for embedding in result.get("embeddings") or []]
+        raw_embeddings = result.get("embeddings")
+        embeddings = [list(embedding) for embedding in raw_embeddings] if raw_embeddings is not None else []
     except Exception as exc:
         raise RAGServiceError("Unable to snapshot existing PDF chunks") from exc
     if not (
@@ -418,6 +420,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             batch_size=args.batch_size,
         )
     except (OSError, RAGServiceError, ValueError) as exc:
+        import traceback
+        traceback.print_exc()
         print(f"PDF indexing failed: {exc}", file=sys.stderr)
         return 1
 

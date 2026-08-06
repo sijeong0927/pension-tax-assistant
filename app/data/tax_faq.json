@@ -530,6 +530,17 @@
       "source_url": "https://www.nts.go.kr/nts/na/ntt/selectNttInfo.do?mi=2201&nttSn=1351098",
       "effective_date": "2026-05-14",
       "last_verified": "2026-08-05"
+    },
+    {
+      "id": "faq_60",
+      "category": "관할세무서 방문",
+      "question": "국세청(세무서)에 방문할 때 필요한 서류나 준비물은 무엇인가요?",
+      "answer": "국세청(세무서)에서는 근로자의 연말정산 서류 접수나 직접적인 연말정산 업무처리를 하지 않습니다. (연말정산 서류는 소속 회사에 제출하셔야 합니다.) 세무서에 직접 방문하실 때에는 업무 목적에 따라 필요한 서류가 다릅니다. 공통 기본 준비물: 본인 신분증 (대리인 방문 시: 위임장, 위임자 신분증 사본, 대리인 신분증) 주요 방문 목적별 서류: 사업자등록, 소득금액증명 발급, 종합소득세 신고 등 필요하신 세무 업무를 말씀해 주시면 안내해 드리겠습니다.",
+      "source_title": "국세청(세무서) 민원실 방문 안내 및 연말정산 서류 제출 안내",
+      "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+      "effective_date": "2026-08-06",
+      "last_verified": "2026-08-06",
+      "target": "관할세무서"
     }
   ]
 }

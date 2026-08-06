@@ -26,6 +26,7 @@ class KnowledgeDocument:
     last_verified: str
     source_chunk_ids: str
     provenance_verified: bool
+    target: str = "회사제출용"
 
     def to_metadata(self) -> dict[str, str | bool]:
         return {
@@ -38,6 +39,7 @@ class KnowledgeDocument:
             "last_verified": self.last_verified,
             "source_chunk_ids": self.source_chunk_ids,
             "provenance_verified": self.provenance_verified,
+            "target": self.target,
         }
 
 
@@ -171,6 +173,7 @@ def load_knowledge_base(
         source_title, source_url, effective_date, last_verified, verified = (
             _document_provenance(raw_guide, raw_dataset, prefix="guide")
         )
+        guide_target = raw_guide.get("target", "회사제출용")
         documents.append(
             KnowledgeDocument(
                 document_id="guide_00",
@@ -184,6 +187,7 @@ def load_knowledge_base(
                 last_verified=last_verified,
                 source_chunk_ids=_source_chunk_ids(raw_guide, "guide"),
                 provenance_verified=verified,
+                target=guide_target,
             )
         )
         seen_ids.add("guide_00")
@@ -203,6 +207,7 @@ def load_knowledge_base(
             f"{prefix}.question",
         )
         answer = _non_empty_string(raw_faq.get("answer"), f"{prefix}.answer")
+        faq_target = raw_faq.get("target", "회사제출용")
 
         normalized_question = _normalized(question)
         if document_id in seen_ids:
@@ -232,6 +237,7 @@ def load_knowledge_base(
                 last_verified=last_verified,
                 source_chunk_ids=_source_chunk_ids(raw_faq, prefix),
                 provenance_verified=verified,
+                target=faq_target,
             )
         )
 
