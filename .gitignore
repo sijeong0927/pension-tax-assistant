@@ -242,6 +242,10 @@ chroma_db/
 *.hwp
 *.xlsx
 
+# 검증된 RAG 공식 근거 PDF는 버전 관리한다.
+!app/data/pdfs/
+!app/data/pdfs/*.pdf
+
 # Offline answer-quality evaluation reports
 /tmp/answer_quality_report*.json
 app/data/*.db

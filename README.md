@@ -14,7 +14,7 @@ Python 서비스가 담당하고, LLM은 공식 자료 검색과 조건 설명�
 | --- | --- |
 | 진단 | 총급여, 연금저축, IRP 납입액 기반 결정론적 계산 |
 | 시뮬레이터 | 납입액 조정, 계좌별 한도, 예상 세액공제 효과 |
-| RAG | ChromaDB Vector + 한국어 BM25 + 로컬 RRF 재정렬 |
+| RAG | ChromaDB Vector + 한국어 BM25 + 로컬 RRF 재정렬 + FAQ 연결 공식 PDF 근거 |
 | 챗봇 | SSE 스트리밍, 공식 출처, 추천 질문 3개 |
 | 대화 이력 | SQLite 세션 목록·조회·삭제와 최근 대화 문맥 |
 | 인증·저장 | 이메일/JWT 인증과 사용자별 최신 진단 결과 저장 |
@@ -61,8 +61,9 @@ flowchart LR
 
 ## 지식 검색
 
-지식베이스에는 가이드 1개, FAQ 59개와 2025 연말정산 공식 가이드 PDF가 포함됩니다.
-각 문서는 공식 출처명, URL, 기준일과 검증일을 관리합니다.
+지식베이스에는 가이드 1개, FAQ 59개와 국세청·국가법령정보센터·금융위원회의 검증된
+공식 PDF가 포함됩니다. 각 FAQ는 답변을 뒷받침하는 PDF 청크 ID를 보유하고, 각 문서는
+공식 출처명, URL, 기준일과 검증일을 관리합니다.
 
 ```mermaid
 flowchart LR
@@ -70,7 +71,10 @@ flowchart LR
     Q --> B["BM25 검색"]
     V --> R["로컬 RRF 재정렬"]
     B --> R
-    R --> G{"관련 근거 존재"}
+    R --> F{"FAQ 선택됨?"}
+    F -->|"예"| P["연결된 공식 PDF 청크 보강"]
+    F -->|"아니오"| G{"관련 근거 존재"}
+    P --> G
     G -->|"예"| L["근거 기반 답변"]
     G -->|"아니요"| N["근거 부족 안내"]
 ```
@@ -112,6 +116,13 @@ RAG를 사용하려면 `.env`에 `OPENAI_API_KEY`와 개발용 `SECRET_KEY`를 �
 ```powershell
 python scripts/index_tax_faq.py --strict-provenance
 python scripts/index_pdf.py
+python scripts/index_pdf.py --pdf app/data/pdfs/income_tax_act_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/income_tax_decree_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/special_tax_treatment_act_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/retirement_benefits_act_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/fsc_2025_pension_savings_white_paper.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/fsc_2018_retirement_pension_risk_assets.pdf
+python scripts/validate_faq_pdf_links.py
 ```
 
 ### 프론트엔드

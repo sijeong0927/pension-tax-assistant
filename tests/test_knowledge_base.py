@@ -9,6 +9,7 @@ from app.services.knowledge_base import (
     KnowledgeBaseValidationError,
     load_knowledge_base,
 )
+from scripts.validate_faq_pdf_links import validate_faq_pdf_links
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -34,14 +35,24 @@ def test_strict_provenance_accepts_current_knowledge_base() -> None:
     assert len(report.documents) == 60
 
 
-def test_general_year_end_faqs_reference_preindexed_nts_chunks() -> None:
+def test_every_faq_references_preindexed_pdf_chunks() -> None:
     report = load_knowledge_base(PROJECT_ROOT / "app/data/tax_faq.json")
-    documents = {document.document_id: document for document in report.documents}
+    faq_documents = [
+        document
+        for document in report.documents
+        if document.document_id.startswith("faq_")
+    ]
 
-    for number in range(31, 42):
-        document = documents[f"faq_{number}"]
-        assert document.source_url.startswith("https://www.nts.go.kr/")
-        assert document.source_chunk_ids.startswith("pdf_page_")
+    assert len(faq_documents) == 59
+    assert all(document.source_chunk_ids.startswith("pdf_") for document in faq_documents)
+
+
+def test_all_faq_pdf_links_resolve_to_official_source_chunks() -> None:
+    result = validate_faq_pdf_links()
+
+    assert result.faq_count == 59
+    assert result.chunk_link_count >= 59
+    assert result.source_count == 7
 
 
 def test_extended_faqs_have_distinct_questions_and_verified_provenance() -> None:
@@ -69,6 +80,7 @@ def test_corrected_faqs_use_official_sources_and_safe_tax_wording() -> None:
     assert "총급여나 종합소득의 3% 기준은 이 요건이 아닙니다" in documents["faq_26"].text
     assert "배우자 외 상속인은 연금계좌를 승계할 수 없습니다" in documents["faq_28"].text
     assert "연금보험료등소득ㆍ세액공제확인서" in documents["faq_29"].text
+    assert "나이와 소득 요건을 적용하지 않습니다" in documents["faq_53"].text
     assert documents["faq_26"].source_url.startswith("https://www.law.go.kr/")
     assert documents["faq_29"].source_url.startswith("https://law.go.kr/")
 
