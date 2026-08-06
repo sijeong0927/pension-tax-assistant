@@ -173,8 +173,18 @@ def test_calculation_handoff_stream_does_not_reach_rag(tmp_path: Path) -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        "연금계좌 세액공제 한도는 얼마인가요?",
+        "연금저축 세액공제 한도는 얼마나 되나요?",
+        "IRP는 얼마나 오래 유지해야 하나요?",
+        "중도인출하면 세금이 얼마나 부과되나요?",
+    ],
+)
 def test_general_policy_question_is_not_treated_as_personal_calculation(
     tmp_path: Path,
+    question: str,
 ) -> None:
     openai_client = FakeOpenAI()
     service = RAGService(
@@ -183,7 +193,7 @@ def test_general_policy_question_is_not_treated_as_personal_calculation(
         collection=FakeCollection(),
     )
 
-    answer = service.answer_question("연금계좌 세액공제 한도는 얼마인가요?")
+    answer = service.answer_question(question)
 
     assert answer.grounded is True
     assert len(openai_client.responses.calls) == 1

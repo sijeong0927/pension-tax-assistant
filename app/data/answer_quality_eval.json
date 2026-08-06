@@ -93,6 +93,21 @@
       "expected_behavior": "diagnosis_handoff"
     },
     {
+      "id": "pension_limit_how_much_general",
+      "query": "연금저축 세액공제 한도는 얼마나 되나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "irp_maintenance_period_general",
+      "query": "IRP는 얼마나 오래 유지해야 하나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
+      "id": "early_withdrawal_tax_how_much_general",
+      "query": "중도인출하면 세금이 얼마나 부과되나요?",
+      "expected_behavior": "policy_explanation"
+    },
+    {
       "id": "transfer_to_other_provider",
       "query": "지금 가진 연금저축을 다른 은행이나 증권사로 옮기고 싶어요. 해지해야 하나요?",
       "expected_behavior": "policy_explanation"

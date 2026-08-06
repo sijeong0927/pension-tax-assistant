@@ -83,7 +83,7 @@ def test_checked_in_answer_quality_evaluation_has_expected_behaviors() -> None:
 
     cases = load_answer_quality_evaluation(evaluation_path)
 
-    assert len(cases) == 23
+    assert len(cases) == 26
     assert {case.expected_behavior for case in cases} == {
         "policy_explanation",
         "diagnosis_handoff",
