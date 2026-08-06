@@ -303,6 +303,38 @@ class RAGService:
             relevance_score=0.0,
         )
 
+    @staticmethod
+    def _filter_high_confidence_sources(
+        retrieved: Sequence[RetrievedDocument],
+        max_sources: int = 2,
+    ) -> list[RetrievedDocument]:
+        """답변 하단 근거 표출 시 신뢰도 높은 핵심 근거 문서만 상위 max_sources개 중복 없이 엄선한다."""
+        if not retrieved:
+            return []
+
+        # 1. 연관도 높은 순서로 정렬
+        sorted_docs = sorted(
+            retrieved,
+            key=lambda d: d.relevance_score,
+            reverse=True,
+        )
+
+        # 2. 제목/출처 중복 제거 및 엄선
+        unique_sources: list[RetrievedDocument] = []
+        seen_titles: set[str] = set()
+
+        for doc in sorted_docs:
+            title_key = (doc.source_title or doc.title or "").strip()
+            if title_key and title_key in seen_titles:
+                continue
+            if title_key:
+                seen_titles.add(title_key)
+            unique_sources.append(doc)
+            if len(unique_sources) >= max_sources:
+                break
+
+        return unique_sources if unique_sources else list(retrieved[:max_sources])
+
     def retrieve_with_linked_evidence(
         self,
         question: str,
@@ -417,7 +449,8 @@ class RAGService:
             "위 근거만 사용해 한국어로 답하세요. (이전 대화 맥락이 있다면 이를 참고해 자연스럽게 답변하세요)"
         )
         
-        sources = [document.to_source() for document in retrieved]
+        high_confidence_docs = self._filter_high_confidence_sources(retrieved, max_sources=2)
+        sources = [document.to_source() for document in high_confidence_docs]
         # yield sources first
         sources_dict = []
         for s in sources:
@@ -549,7 +582,8 @@ class RAGService:
         if not answer:
             raise RAGServiceError("OpenAI가 비어 있는 답변을 반환했습니다.")
 
-        sources = [document.to_source() for document in retrieved]
+        high_confidence_docs = self._filter_high_confidence_sources(retrieved, max_sources=2)
+        sources = [document.to_source() for document in high_confidence_docs]
         return RAGAnswer(
             answer=answer,
             grounded=True,

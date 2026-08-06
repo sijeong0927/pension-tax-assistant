@@ -24,6 +24,7 @@ class ChatQueryResponse(BaseModel):
     success: bool = True
     answer: str = Field(..., description="RAG AI 챗봇의 최종 답변")
     sources: List[Dict[str, Any]] = Field(default_factory=list, description="참조한 FAQ 출처 문서 목록")
+    data: Optional[Dict[str, Any]] = Field(default=None, description="하위 호환성 응답 페이로드")
 
 
 def _to_dict(obj: Any) -> Dict[str, Any]:
@@ -102,7 +103,11 @@ def query_chat(request: ChatQueryRequest, db: Client = Depends(get_db), current_
         return ChatQueryResponse(
             success=True,
             answer=final_answer,
-            sources=formatted_sources
+            sources=formatted_sources,
+            data={
+                "answer": final_answer,
+                "sources": formatted_sources,
+            }
         )
 
     except Exception as e:

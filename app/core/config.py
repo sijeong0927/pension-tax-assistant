@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env")
+load_dotenv(PROJECT_ROOT / ".env.local")
 
 
 class ConfigurationError(ValueError):
@@ -109,8 +110,8 @@ class RAGSettings:
                 maximum=1,
             ),
             chroma_persist_dir=_project_path(
-                "CHROMA_PERSIST_DIR",
-                ".chroma",
+                "CHROMADB_DIR",
+                os.getenv("CHROMA_PERSIST_DIR", "chroma_db"),
             ),
             chroma_collection_name=os.getenv(
                 "CHROMA_COLLECTION_NAME",

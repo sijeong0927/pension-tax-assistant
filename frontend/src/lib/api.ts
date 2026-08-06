@@ -7,10 +7,10 @@
  *   POST /api/v1/chat/query                 → AI 질의 및 저장
  */
 
-import { API_BASE_URL } from './config';
+import { getApiBaseUrl } from './config';
 import { getAuthToken } from './auth';
 
-const BASE_URL = API_BASE_URL;
+const getBaseUrl = () => getApiBaseUrl();
 
 const getHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -76,7 +76,7 @@ export interface SourceDoc {
  */
 export async function fetchChatHistory(sessionId: string): Promise<ChatMessage[]> {
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/chat/history/${encodeURIComponent(sessionId)}`, {
+    const res = await fetch(`${getBaseUrl()}/api/v1/chat/history/${encodeURIComponent(sessionId)}`, {
       method: 'GET',
       headers: getHeaders(),
       // 캐시 무효화: 항상 최신 대화 내역을 가져옴
@@ -109,7 +109,7 @@ export async function sendQuery(
     question: query,
   };
 
-  const res = await fetch(`${BASE_URL}/api/v1/chat/query`, {
+  const res = await fetch(`${getBaseUrl()}/api/v1/chat/query`, {
     method: 'POST',
     headers: getHeaders(),
     body: JSON.stringify(body),
@@ -135,7 +135,7 @@ export interface SessionMeta {
  */
 export async function fetchSessions(): Promise<SessionMeta[]> {
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/chat/sessions`, {
+    const res = await fetch(`${getBaseUrl()}/api/v1/chat/sessions`, {
       method: 'GET',
       headers: getHeaders(),
       cache: 'no-store',
@@ -159,7 +159,7 @@ export async function fetchSessions(): Promise<SessionMeta[]> {
  */
 export async function deleteSession(sessionId: string): Promise<boolean> {
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/chat/history/${encodeURIComponent(sessionId)}`, {
+    const res = await fetch(`${getBaseUrl()}/api/v1/chat/history/${encodeURIComponent(sessionId)}`, {
       method: 'DELETE',
       headers: getHeaders(),
     });
@@ -185,7 +185,7 @@ export interface TaxSavingsData {
 
 export async function saveTaxSavings(data: TaxSavingsData): Promise<boolean> {
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/tax-savings`, {
+    const res = await fetch(`${getBaseUrl()}/api/v1/tax-savings`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(data),
@@ -199,7 +199,7 @@ export async function saveTaxSavings(data: TaxSavingsData): Promise<boolean> {
 
 export async function fetchTaxSavings(sessionId: string): Promise<TaxSavingsData | null> {
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/tax-savings/${encodeURIComponent(sessionId)}`, {
+    const res = await fetch(`${getBaseUrl()}/api/v1/tax-savings/${encodeURIComponent(sessionId)}`, {
       method: 'GET',
       headers: getHeaders(),
       cache: 'no-store',
@@ -230,7 +230,7 @@ export async function sendQueryStream(
   callbacks: StreamCallbacks
 ) {
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/chat/query/stream`, {
+    const res = await fetch(`${getBaseUrl()}/api/v1/chat/query/stream`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ session_id: sessionId, question: query }),
@@ -293,7 +293,7 @@ export async function sendQueryStream(
 }
 
 export async function fetchMe() {
-  const res = await fetch(`${BASE_URL}/api/v1/auth/me`, {
+  const res = await fetch(`${getBaseUrl()}/api/v1/auth/me`, {
     headers: getHeaders(),
   });
   if (!res.ok) {
@@ -324,7 +324,7 @@ export async function calculateLiteTax(
   sessionId: string | null
 ): Promise<LiteTaxData | null> {
   try {
-    const res = await fetch(`${BASE_URL}/api/v1/lite-tax`, {
+    const res = await fetch(`${getBaseUrl()}/api/v1/lite-tax`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({

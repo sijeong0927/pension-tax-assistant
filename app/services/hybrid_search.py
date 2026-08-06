@@ -347,6 +347,22 @@ def hybrid_search(
             include=["documents", "metadatas", "distances"],
             where=where_clause,
         )
+        # 필터링 결과가 없으면 전체 검색으로 fallback
+        has_results = (
+            vector_result
+            and vector_result.get("documents")
+            and len(vector_result["documents"]) > 0
+            and len(vector_result["documents"][0]) > 0
+        )
+        if filter_target and not has_results:
+            where_clause = None
+            vector_result = collection.query(
+                query_embeddings=[list(query_embedding)],
+                n_results=candidate_k,
+                include=["documents", "metadatas", "distances"],
+                where=None,
+            )
+
         collection_result = collection.get(
             include=["documents", "metadatas"],
             where=where_clause,
