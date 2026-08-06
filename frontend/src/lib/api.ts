@@ -63,8 +63,9 @@ export interface SourceDoc {
   effective_date?: string;
   category?: string;
   last_verified?: string;
+  source_chunk_ids?: string[];
+  excerpt?: string;
   provenance_verified?: boolean;
-  relevance_score?: number;
 }
 
 // ─── API 함수 ────────────────────────────────────────────────────────────────

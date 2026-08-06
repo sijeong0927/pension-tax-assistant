@@ -35,7 +35,7 @@ OPENAI_API_KEY=발급받은_키
 | `RAG_TOP_K` | `4` | 답변에 전달할 최대 문서 수 |
 | `RAG_CANDIDATE_K` | `12` | Vector·BM25 검색별 최대 후보 수 |
 | `RAG_MIN_RELEVANCE_SCORE` | `0.35` | 리랭킹 후 답변 생성에 필요한 최소 검색 점수 |
-| `RAG_MAX_INDEX_DOCUMENTS` | `50` | 한 번에 임베딩할 수 있는 문서 수 |
+| `RAG_MAX_INDEX_DOCUMENTS` | `100` | 한 번에 임베딩할 수 있는 문서 수 |
 | `RAG_MAX_PDF_DOCUMENTS` | `1000` | PDF 인덱서가 한 번에 임베딩할 수 있는 최대 청크 수 |
 | `RAG_MAX_PDF_EMBEDDING_REQUESTS` | `50` | PDF 인덱서의 최대 임베딩 API 요청 수 |
 
@@ -132,6 +132,17 @@ for source in result.sources:
 반환되는 금액은 예상 세액공제 효과를 설명하기 위한 참고값이며 최종 환급액을
 보장하지 않습니다. 실제 결과는 결정세액과 다른 공제 항목에 따라 달라질 수
 있습니다.
+
+## 5. 출처 응답과 화면 표시
+
+채팅 API의 `sources`에는 출처명·URL·기준일과 함께 검색에 사용한
+`source_chunk_ids`, 최대 280자의 공백 정리된 `excerpt`를 반환하고 대화 이력에도
+같은 항목을 보존합니다. 검색 점수(`relevance_score`)는 내부 재정렬에만 사용하며
+API 응답, 저장 이력, 화면에는 포함하지 않습니다.
+
+채팅 화면은 같은 공식 출처 URL(없으면 출처명)의 근거를 한 카드로 묶습니다. 카드를
+가리키거나 키보드로 포커스하면, 모바일에서는 탭하면 각 검색 근거의 청크 식별자와
+발췌를 확인할 수 있습니다.
 
 ## 참고한 공식 개발 문서
 

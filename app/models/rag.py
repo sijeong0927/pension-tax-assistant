@@ -12,6 +12,7 @@ class RAGSource(BaseModel):
     effective_date: str | None = None
     last_verified: str | None = None
     source_chunk_ids: list[str] = Field(default_factory=list)
+    excerpt: str | None = None
     provenance_verified: bool = False
     relevance_score: float = Field(ge=0, le=1)
 

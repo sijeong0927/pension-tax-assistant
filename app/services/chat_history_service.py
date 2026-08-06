@@ -14,8 +14,9 @@ class ChatHistoryService:
         "source_url",
         "effective_date",
         "last_verified",
+        "source_chunk_ids",
+        "excerpt",
         "provenance_verified",
-        "relevance_score",
     )
 
     @staticmethod

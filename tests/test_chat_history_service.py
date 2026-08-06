@@ -13,6 +13,9 @@ def test_normalize_sources():
             "source_title": "국세청 연말정산 안내",
             "effective_date": "2025-01-01",
             "source_url": "https://example.invalid/source",
+            "source_chunk_ids": ["faq_01"],
+            "excerpt": "연금계좌 세액공제 안내입니다.",
+            "relevance_score": 0.92,
             "unexpected": "do not persist",
         }
     ]
@@ -23,5 +26,7 @@ def test_normalize_sources():
             "source_title": "국세청 연말정산 안내",
             "effective_date": "2025-01-01",
             "source_url": "https://example.invalid/source",
+            "source_chunk_ids": ["faq_01"],
+            "excerpt": "연금계좌 세액공제 안내입니다.",
         }
     ]
