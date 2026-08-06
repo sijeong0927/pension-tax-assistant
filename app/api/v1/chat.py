@@ -3,14 +3,13 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from supabase import Client
 import json
 
 from app.db.session import get_db
 from app.services.chat_history_service import ChatHistoryService
 from app.services.rag_service import RAGService
 from app.core.security import get_current_user_optional
-from app.models.user import User
 
 router = APIRouter()
 rag_service = RAGService()
@@ -43,10 +42,10 @@ def _to_dict(obj: Any) -> Dict[str, Any]:
 
 
 @router.post("/chat/query", response_model=ChatQueryResponse)
-def query_chat(request: ChatQueryRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user_optional)):
+def query_chat(request: ChatQueryRequest, db: Client = Depends(get_db), current_user: Optional[dict] = Depends(get_current_user_optional)):
     try:
         session_id = request.session_id or "default_session"
-        user_id = current_user.id if current_user else None
+        user_id = current_user.get("id") if current_user else None
 
         # 1. 사용자 질문 DB 저장 (PII 사전 마스킹 자동 적용)
         ChatHistoryService.save_message(
@@ -96,9 +95,9 @@ def query_chat(request: ChatQueryRequest, db: Session = Depends(get_db), current
         raise HTTPException(status_code=500, detail=f"챗봇 응답 생성 중 오류 발생: {str(e)}")
 
 @router.post("/chat/query/stream")
-def query_chat_stream(request: ChatQueryRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user_optional)):
+def query_chat_stream(request: ChatQueryRequest, db: Client = Depends(get_db), current_user: Optional[dict] = Depends(get_current_user_optional)):
     session_id = request.session_id or "default_session"
-    user_id = current_user.id if current_user else None
+    user_id = current_user.get("id") if current_user else None
     
     # 1. 사용자 질문 DB 저장
     ChatHistoryService.save_message(
@@ -147,34 +146,34 @@ def query_chat_stream(request: ChatQueryRequest, db: Session = Depends(get_db), 
 
 
 @router.get("/chat/history/{session_id}")
-def get_chat_history(session_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user_optional)):
+def get_chat_history(session_id: str, db: Client = Depends(get_db), current_user: Optional[dict] = Depends(get_current_user_optional)):
     """
-    특정 세션 ID의 이전 대화 내역을 최신순으로 조회하는 API
+    특정 세션 ID의 이전 대화 내역을 조회하는 API
     """
-    user_id = current_user.id if current_user else None
+    user_id = current_user.get("id") if current_user else None
     history = ChatHistoryService.get_history(db, session_id, user_id=user_id)
     return {
         "success": True,
         "session_id": session_id,
         "history": [
             {
-                "id": item.id,
-                "session_id": item.session_id,
-                "role": item.role,
-                "message": item.message,
-                "created_at": item.created_at,
-                "sources": ChatHistoryService.get_sources(item),
+                "id": item.get("id"),
+                "session_id": item.get("session_id"),
+                "role": item.get("role"),
+                "message": item.get("message"),
+                "created_at": item.get("created_at"),
+                "sources": ChatHistoryService.get_sources(item, db=db),
             }
             for item in history
         ],
     }
 
 @router.get("/chat/sessions")
-def get_chat_sessions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user_optional)):
+def get_chat_sessions(db: Client = Depends(get_db), current_user: Optional[dict] = Depends(get_current_user_optional)):
     """
     저장된 채팅 세션 목록 조회 API
     """
-    user_id = current_user.id if current_user else None
+    user_id = current_user.get("id") if current_user else None
     sessions = ChatHistoryService.get_sessions(db, limit=50, user_id=user_id)
     return {
         "success": True,
@@ -182,17 +181,12 @@ def get_chat_sessions(db: Session = Depends(get_db), current_user: User = Depend
     }
 
 @router.delete("/chat/history/{session_id}")
-def delete_chat_session(session_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user_optional)):
+def delete_chat_session(session_id: str, db: Client = Depends(get_db), current_user: Optional[dict] = Depends(get_current_user_optional)):
     """
     특정 세션의 대화 내역 전체 삭제 API
     """
-    user_id = current_user.id if current_user else None
+    user_id = current_user.get("id") if current_user else None
     deleted = ChatHistoryService.delete_session(db, session_id, user_id=user_id)
-    if not deleted:
-        # 이미 삭제되었거나 없는 경우도 성공으로 처리할 수 있으나, 명확한 응답을 위해 404 가능성 고려
-        # 하지만 단순 구현을 위해 True 반환
-        pass
-    
     return {
         "success": True,
         "message": f"Session {session_id} deleted successfully."

@@ -37,11 +37,17 @@ export default function RootLayout({
           rel="stylesheet"
         />
         <link
+          rel="stylesheet"
+          as="style"
+          crossOrigin="anonymous"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
+        />
+        <link
           href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen flex flex-col gradient-bg antialiased">
+      <body className="min-h-screen flex flex-col antialiased" style={{ background: 'var(--color-surface-2)' }}>
         {children}
       </body>
     </html>

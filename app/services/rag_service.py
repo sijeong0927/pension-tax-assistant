@@ -12,7 +12,6 @@ from app.core.prompts import (
 )
 from app.core.vector_db import get_vector_collection
 from app.models.rag import RAGAnswer, RAGSource
-from app.models.chat_history import ChatHistory
 from app.services.hybrid_search import (
     HybridSearchError,
     hybrid_search,
@@ -255,7 +254,7 @@ class RAGService:
             )
         return retrieved
 
-    def answer_question_stream(self, question: str, chat_history: list[ChatHistory] | None = None):
+    def answer_question_stream(self, question: str, chat_history: list[dict[str, Any]] | None = None):
         import json
         retrieved = self.retrieve(question)
         if not retrieved:
@@ -269,8 +268,10 @@ class RAGService:
         if chat_history:
             history_lines = []
             for msg in chat_history:
-                role_label = "사용자" if msg.role == "user" else "AI"
-                history_lines.append(f"[{role_label}]: {msg.message}")
+                role_val = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", "")
+                msg_val = msg.get("message") if isinstance(msg, dict) else getattr(msg, "message", "")
+                role_label = "사용자" if role_val == "user" else "AI"
+                history_lines.append(f"[{role_label}]: {msg_val}")
             history_text = "\n최근 대화 기록:\n" + "\n".join(history_lines) + "\n\n"
 
         user_prompt = (
@@ -346,7 +347,7 @@ class RAGService:
         except Exception as exc:
             yield f"event: error\ndata: {json.dumps({'error': str(exc)}, ensure_ascii=False)}\n\n"
 
-    def answer_question(self, question: str, chat_history: list[ChatHistory] | None = None) -> RAGAnswer:
+    def answer_question(self, question: str, chat_history: Sequence[dict[str, Any]] | None = None) -> RAGAnswer:
         retrieved = self.retrieve(question)
         return self.answer_from_retrieved_documents(
             question,
@@ -359,7 +360,7 @@ class RAGService:
         question: str,
         retrieved: Sequence[RetrievedDocument],
         *,
-        chat_history: Sequence[ChatHistory] | None = None,
+        chat_history: Sequence[dict[str, Any]] | None = None,
     ) -> RAGAnswer:
         """Generate an answer from already retrieved evidence without retrieving again."""
         if not retrieved:
@@ -378,8 +379,10 @@ class RAGService:
         if chat_history:
             history_lines = []
             for msg in chat_history:
-                role_label = "사용자" if msg.role == "user" else "AI"
-                history_lines.append(f"[{role_label}]: {msg.message}")
+                role_val = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", "")
+                msg_val = msg.get("message") if isinstance(msg, dict) else getattr(msg, "message", "")
+                role_label = "사용자" if role_val == "user" else "AI"
+                history_lines.append(f"[{role_label}]: {msg_val}")
             history_text = "\n최근 대화 기록:\n" + "\n".join(history_lines) + "\n\n"
 
         user_prompt = (

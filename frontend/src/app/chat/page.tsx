@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import Link from 'next/link';
-import { fetchChatHistory, sendQueryStream, fetchSessions, deleteSession, fetchTaxSavings, type ChatMessage, type SessionMeta, type SourceDoc, type TaxSavingsData } from '@/lib/api';
+import { fetchChatHistory, sendQueryStream, fetchSessions, deleteSession, fetchTaxSavings, fetchMe, type ChatMessage, type SessionMeta, type SourceDoc, type TaxSavingsData } from '@/lib/api';
 import { isAuthenticated } from '@/lib/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -139,6 +139,27 @@ function formatText(text: string, sources: Source[] = []) {
   });
 }
 
+function getUpcomingTaxEvent() {
+  const today = new Date();
+  const month = today.getMonth() + 1;
+
+  if (month <= 2) {
+    return { title: "연말정산 간소화 서비스", desc: "1월 15일 ~ 2월 28일", icon: "📄", dDay: "진행 중" };
+  } else if (month <= 5) {
+    return { title: "종합소득세 확정 신고", desc: "5월 1일 ~ 5월 31일", icon: "📝", dDay: "5월 일정" };
+  } else if (month <= 7) {
+    return { title: "부가가치세 확정 신고", desc: "7월 1일 ~ 7월 25일", icon: "🏢", dDay: "7월 일정" };
+  } else if (month === 8) {
+    return { title: "주민세(개인분) 납부", desc: "8월 16일 ~ 8월 31일", icon: "🏠", dDay: "이달 말까지" };
+  } else if (month === 9) {
+    return { title: "근로장려금 반기 신청", desc: "9월 1일 ~ 9월 15일", icon: "💵", dDay: "이달 15일까지" };
+  } else if (month <= 11) {
+    return { title: "종합소득세 중간예납", desc: "11월 1일 ~ 11월 30일", icon: "📊", dDay: "11월 일정" };
+  } else {
+    return { title: "연금계좌 납입 마감", desc: "12월 31일 (금융사별 마감시간 유의)", icon: "⏳", dDay: "마감 임박" };
+  }
+}
+
 function TypingDots() {
   return (
     <div className="flex items-center gap-1 py-1">
@@ -156,15 +177,9 @@ function TypingDots() {
 function AiAvatar() {
   return (
     <div
-      className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center border shadow-sm"
-      style={{ background: 'white', borderColor: 'rgba(199,196,216,0.3)' }}
+      className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-[#F3F4F6] border border-gray-200 shadow-sm overflow-hidden"
     >
-      <span
-        className="material-symbols-outlined"
-        style={{ fontSize: '20px', color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}
-      >
-        smart_toy
-      </span>
+      <span className="text-[24px] mt-1">👨‍✈️</span>
     </div>
   );
 }
@@ -239,6 +254,19 @@ export default function ChatPage() {
   // localStorage에 축적된 과거 세션 목록
   const [sessionList, setSessionList] = useState<SessionMeta[]>([]);
   const [savingsData, setSavingsData] = useState<TaxSavingsData | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      setIsLoggedIn(true);
+      fetchMe().then(user => {
+        if (user) {
+          setUserName(user.full_name || user.name || (user.email ? user.email.split('@')[0] : '회원'));
+        }
+      }).catch(console.error);
+    }
+  }, []);
 
   // When sidebarView changes to savings, fetch savings data
   useEffect(() => {
@@ -387,22 +415,22 @@ export default function ChatPage() {
   return (
     <div
       className="h-screen flex overflow-hidden"
-      style={{ background: 'var(--color-background)', color: 'var(--color-on-background)' }}
+      style={{ background: 'var(--color-surface-2)' }}
     >
       {/* ── Sidebar ── */}
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/30 z-30 md:hidden"
+          className="fixed inset-0 bg-black/40 z-30 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       <aside
-        className="flex flex-col h-screen w-80 fixed left-0 top-0 z-40 transition-transform duration-300"
+        className="flex flex-col h-screen w-64 fixed left-0 top-0 z-40 transition-transform duration-300"
         style={{
-          background: 'var(--color-surface-container-low)',
-          borderRight: '1px solid rgba(199,196,216,0.3)',
+          background: 'var(--color-surface)',
+          borderRight: '1px solid var(--color-border)',
           transform: sidebarOpen ? 'translateX(0)' : undefined,
         }}
       >
@@ -412,69 +440,73 @@ export default function ChatPage() {
           }
         `}</style>
 
-        <div className="flex flex-col h-full p-4">
-          {/* Logo */}
-          <div className="flex items-center gap-3 mb-8 mt-4">
+        <div className="flex flex-col h-full py-6 px-4">
+          {/* Brand Logo */}
+          <div className="flex items-center gap-2.5 mb-8 px-2">
             <div
-              className="w-11 h-11 rounded-full flex items-center justify-center shadow-sm"
-              style={{ background: 'rgba(53,37,205,0.08)' }}
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ background: 'var(--color-primary)' }}
             >
-              <span
-                className="material-symbols-outlined"
-                style={{ fontSize: '24px', color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}
-              >
-                local_taxi
-              </span>
+              <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>local_taxi</span>
             </div>
-            <div>
-              <h1
-                className="font-bold text-lg leading-tight"
-                style={{ fontFamily: "'Hanken Grotesk', sans-serif", color: 'var(--color-primary)' }}
-              >
-                Tax-i
-              </h1>
-              <p className="text-xs" style={{ color: 'var(--color-on-surface-variant)' }}>
-                Your Smart Tax Scout
+            <span className="font-bold text-[16px] tracking-tight" style={{ color: 'var(--color-text-primary)' }}>절세택시</span>
+          </div>
+
+          {/* User Profile */}
+          <div className="flex items-center gap-3 mb-6 px-2 py-3 rounded-xl" style={{ background: 'var(--color-surface-2)' }}>
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: 'var(--color-primary-light)', border: '1px solid var(--color-border)' }}
+            >
+              <span className="material-symbols-outlined text-[20px]" style={{ color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}>person</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium" style={{ color: 'var(--color-text-muted)' }}>반갑습니다</p>
+              <p className="font-semibold text-[14px] truncate" style={{ color: 'var(--color-text-primary)' }}>
+                {isLoggedIn ? `${userName || '회원'} 손님` : '절세택시 손님'}
               </p>
             </div>
           </div>
 
+          {/* Tax Schedule Card */}
+          <div
+            className="rounded-xl p-3.5 mb-6"
+            style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>세무 일정</span>
+              <span
+                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)' }}
+              >
+                {getUpcomingTaxEvent().dDay}
+              </span>
+            </div>
+            <p className="text-[13px] font-semibold" style={{ color: 'var(--color-text-primary)' }}>{getUpcomingTaxEvent().title}</p>
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{getUpcomingTaxEvent().desc}</p>
+          </div>
+
           {/* Nav */}
-          <nav className="flex-1 space-y-1 overflow-y-auto">
+          <nav className="flex-1 space-y-0.5 overflow-y-auto">
             {[
-              {
-                icon: 'add_comment',
-                label: '새 상담',
-                view: 'chat' as const,
-                onClick: handleReset,
-              },
-              {
-                icon: 'receipt_long',
-                label: '상담 기록',
-                view: 'history' as const,
-                onClick: () => { setSidebarView('history'); setSidebarOpen(false); },
-              },
-              {
-                icon: 'savings',
-                label: '저장된 절세 정보',
-                view: 'savings' as const,
-                onClick: () => { setSidebarView('savings'); setSidebarOpen(false); },
-              },
+              { icon: 'add_comment', label: '새 상담', view: 'chat' as const, onClick: handleReset },
+              { icon: 'receipt_long', label: '상담 기록', view: 'history' as const, onClick: () => { setSidebarView('history'); setSidebarOpen(false); } },
+              { icon: 'savings', label: '저장된 절세 정보', view: 'savings' as const, onClick: () => { setSidebarView('savings'); setSidebarOpen(false); } },
             ].map(({ icon, label, view, onClick }) => {
               const active = sidebarView === view;
               return (
                 <button
                   key={label}
                   onClick={onClick}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors text-sm font-medium"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all text-[14px] font-medium"
                   style={{
-                    background: active ? 'var(--color-primary)' : 'transparent',
-                    color: active ? 'white' : 'var(--color-on-surface-variant)',
+                    background: active ? 'var(--color-primary-light)' : 'transparent',
+                    color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
                   }}
                 >
                   <span
-                    className="material-symbols-outlined text-xl"
-                    style={active ? { fontVariationSettings: "'FILL' 1" } : {}}
+                    className="material-symbols-outlined text-[20px]"
+                    style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}
                   >
                     {icon}
                   </span>
@@ -485,86 +517,75 @@ export default function ChatPage() {
           </nav>
 
           {/* Bottom nav */}
-          <div
-            className="mt-auto pt-4 space-y-1"
-            style={{ borderTop: '1px solid rgba(199,196,216,0.3)' }}
-          >
-            {[
-              { icon: 'arrow_back', label: '진단으로 돌아가기', href: '/diagnose' },
-              { icon: 'home', label: '홈으로', href: '/' },
-            ].map(({ icon, label, href }) => (
+          <div className="mt-auto pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="flex gap-2">
               <Link
-                key={label}
-                href={href}
-                className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors"
-                style={{ color: 'var(--color-on-surface-variant)' }}
+                href="/diagnose"
+                className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-lg text-[11px] font-semibold transition-colors hover:bg-gray-50"
+                style={{ color: 'var(--color-text-muted)' }}
+                title="진단으로 돌아가기"
               >
-                <span className="material-symbols-outlined text-xl">{icon}</span>
-                {label}
+                <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                진단
               </Link>
-            ))}
+              <Link
+                href="/"
+                className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-lg text-[11px] font-semibold transition-colors hover:bg-gray-50"
+                style={{ color: 'var(--color-text-muted)' }}
+                title="홈으로"
+              >
+                <span className="material-symbols-outlined text-[20px]">home</span>
+                <span className="text-[10px] font-semibold">홈</span>
+              </Link>
+            </div>
           </div>
         </div>
       </aside>
 
       {/* ── Main Content ── */}
-      <div className="flex-1 flex flex-col md:ml-80 relative h-full min-w-0">
+      <div
+        className="flex-1 flex flex-col md:ml-64 relative h-full min-w-0"
+        style={{ background: 'var(--color-surface-2)' }}
+      >
 
-        {/* Header */}
         <header
-          className="flex justify-between items-center w-full px-5 py-3 sticky top-0 z-20 backdrop-blur-md"
-          style={{
-            background: 'rgba(248,249,255,0.85)',
-            borderBottom: '1px solid rgba(199,196,216,0.3)',
-            boxShadow: '0 1px 8px rgba(0,0,0,0.04)',
-          }}
+          className="flex justify-between items-center px-6 py-4 sticky top-0 z-20"
+          style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}
         >
           <div className="flex items-center gap-3">
             <button
-              className="md:hidden p-1 rounded-lg"
-              style={{ color: 'var(--color-on-surface-variant)' }}
+              className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
               onClick={() => setSidebarOpen(true)}
             >
-              <span className="material-symbols-outlined">menu</span>
+              <span className="material-symbols-outlined text-[22px]" style={{ color: 'var(--color-text-muted)' }}>menu</span>
             </button>
-            <span
-              className="font-bold text-xl md:hidden"
-              style={{ fontFamily: "'Hanken Grotesk', sans-serif", color: 'var(--color-primary)' }}
-            >
-              Tax-i
-            </span>
-            <span
-              className="font-bold text-xl hidden md:block"
-              style={{ fontFamily: "'Hanken Grotesk', sans-serif", color: 'var(--color-primary)' }}
-            >
-              {sidebarView === 'history' ? '상담 기록' : sidebarView === 'savings' ? '저장된 절세 정보' : 'AI 상담'}
-            </span>
+            <div>
+              <h1 className="font-semibold text-[17px] tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+                {sidebarView === 'history' ? '상담 기록' : sidebarView === 'savings' ? '저장된 절세 정보' : 'AI 세무 상담'}
+              </h1>
+              {sidebarView === 'chat' && (
+                <p className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>Tax-i 기사님과 실시간으로 대화하세요</p>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm"
-              style={{
-                background: 'rgba(229,238,255,0.6)',
-                borderColor: 'rgba(199,196,216,0.4)',
-                color: 'var(--color-on-surface-variant)',
-              }}
-            >
-              <span
-                className="material-symbols-outlined"
-                style={{ fontSize: '16px', color: 'var(--color-secondary)', fontVariationSettings: "'FILL' 1" }}
+          <div className="flex items-center gap-2">
+            {sidebarView === 'chat' && (
+              <div
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                style={{ background: '#ECFDF5', border: '1px solid #A7F3D0' }}
               >
-                auto_awesome
-              </span>
-              <span className="text-xs font-medium">RAG + GPT-4o mini</span>
-            </div>
+                <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#059669' }}></div>
+                <span className="text-[11px] font-semibold" style={{ color: '#059669' }}>온라인</span>
+              </div>
+            )}
             <button
-              className="p-2 rounded-full transition-colors"
-              style={{ color: 'var(--color-on-surface-variant)' }}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              style={{ color: 'var(--color-text-muted)' }}
               onClick={handleReset}
               title="새 상담"
             >
-              <span className="material-symbols-outlined">add_comment</span>
+              <span className="material-symbols-outlined text-[20px]">add_comment</span>
             </button>
           </div>
         </header>
@@ -705,95 +726,167 @@ export default function ChatPage() {
 
         {/* ── 저장된 절세 정보 패널 ── */}
         {sidebarView === 'savings' && (
-          <main className="flex-1 overflow-y-auto px-4 md:px-10 py-8">
-            <div className="max-w-2xl mx-auto">
+          <main className="flex-1 overflow-y-auto" style={{ background: 'var(--color-surface-2)' }}>
+            <div className="max-w-2xl mx-auto px-4 md:px-8 py-8">
               {!isAuthenticated() ? (
-                <div className="text-center py-20">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 bg-gray-100">
-                    <span className="material-symbols-outlined text-3xl" style={{ color: 'var(--color-on-surface-variant)' }}>savings</span>
+                <div className="text-center py-24">
+                  <div
+                    className="inline-flex items-center justify-center w-20 h-20 rounded-3xl mb-6"
+                    style={{ background: 'linear-gradient(135deg, rgba(90,50,250,0.12), rgba(139,92,246,0.08))', border: '1px solid rgba(90,50,250,0.15)' }}
+                  >
+                    <span className="material-symbols-outlined text-4xl" style={{ color: '#5A32FA', fontVariationSettings: "'FILL' 1" }}>lock</span>
                   </div>
-                  <h3 className="text-lg font-bold mb-2">로그인이 필요합니다</h3>
-                  <p className="text-sm text-gray-500 mb-6">나만의 절세 진단 결과를 기기 간 연동하여 관리하세요.</p>
-                  <Link href="/login?redirect=/chat" className="px-6 py-3 rounded-xl font-semibold text-sm text-white" style={{ background: 'var(--color-primary)' }}>
+                  <h3 className="text-xl font-bold mb-2" style={{ color: '#0f0f13' }}>로그인이 필요합니다</h3>
+                  <p className="text-sm mb-8" style={{ color: '#64748b' }}>나만의 절세 진단 결과를 저장하고 관리하세요.</p>
+                  <Link
+                    href="/login?redirect=/chat"
+                    className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:-translate-y-0.5"
+                    style={{ background: 'linear-gradient(135deg, #5A32FA 0%, #7C3AED 100%)', boxShadow: '0 8px 24px rgba(90,50,250,0.35)' }}
+                  >
                     로그인하러 가기
                   </Link>
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-2 mb-6">
-                <span
-                  className="material-symbols-outlined"
-                  style={{ color: 'var(--color-secondary)', fontVariationSettings: "'FILL' 1" }}
-                >
-                  savings
-                </span>
-                <h2 className="font-bold text-lg" style={{ fontFamily: "'Hanken Grotesk', sans-serif", color: 'var(--color-on-surface)' }}>
-                  나의 절세 정보
-                </h2>
-              </div>
-
-              {/* 세액공제 요약 카드 */}
-              {savingsData ? (
-                <div
-                  className="p-5 rounded-2xl mb-4"
-                  style={{ background: 'linear-gradient(135deg, rgba(53,37,205,0.08), rgba(0,108,73,0.06))', border: '1px solid rgba(199,196,216,0.3)' }}
-                >
-                  <p className="font-semibold text-sm mb-3" style={{ color: 'var(--color-on-surface-variant)' }}>저장된 세액공제 진단 결과</p>
-                  {[
-                    { label: '총 급여 구간', value: savingsData.income_range === 'over' ? '5,500만원 초과' : '5,500만원 이하', chip: '' },
-                    { label: '연금저축 납입액', value: `${(savingsData.pension_savings_paid / 10000).toLocaleString()}만원`, chip: '' },
-                    { label: 'IRP 납입액', value: `${(savingsData.irp_paid / 10000).toLocaleString()}만원`, chip: '' },
-                    { label: '총 납입액', value: `${((savingsData.pension_savings_paid + savingsData.irp_paid) / 10000).toLocaleString()}만원`, chip: '' },
-                    { label: '공제 대상 금액', value: `${(savingsData.deductible_amount / 10000).toLocaleString()}만원`, chip: savingsData.income_range === 'over' ? '13.2%' : '16.5%' },
-                    { label: '예상 환급액', value: `${(savingsData.estimated_refund / 10000).toLocaleString()}만원`, chip: '환급 예상' },
-                  ].map(({ label, value, chip }) => (
-                    <div key={label} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid rgba(199,196,216,0.15)' }}>
-                      <span className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>{label}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm" style={{ color: 'var(--color-on-surface)' }}>{value}</span>
-                        {chip && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(53,37,205,0.1)', color: 'var(--color-primary)' }}>{chip}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div
-                  className="p-5 rounded-2xl mb-4 text-center"
-                  style={{ background: 'rgba(199,196,216,0.1)', border: '1px dashed rgba(199,196,216,0.5)' }}
-                >
-                  <p className="text-sm" style={{ color: 'var(--color-on-surface-variant)' }}>저장된 절세 정보가 없습니다.</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--color-outline)' }}>진단 시뮬레이터를 통해 결과를 저장해보세요.</p>
-                </div>
-              )}
-
-              {/* 진단 CTA */}
-              <div
-                className="p-5 rounded-2xl mb-4"
-                style={{ background: 'white', border: '1px solid rgba(199,196,216,0.25)', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(0,108,73,0.08)' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--color-secondary)', fontVariationSettings: "'FILL' 1" }}>calculate</span>
+                  {/* Page Title */}
+                  <div className="mb-6">
+                    <h2 className="font-bold text-2xl tracking-tight" style={{ color: '#0f0f13' }}>나의 절세 정보</h2>
+                    <p className="text-sm mt-1" style={{ color: '#94a3b8' }}>진단 결과를 바탕으로 예상 환급액을 확인하세요</p>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-sm" style={{ color: 'var(--color-on-surface)' }}>실시간 시뮬레이터로 정확한 수치 확인</p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>총급여와 납입액을 슬라이더로 직접 조정하며 예상 세액공제액을 확인하세요.</p>
+
+                  {savingsData ? (
+                    <>
+                      {/* Hero Refund Card – 화면에서 압도적으로 가장 크고 눈에 띄어야 함 */}
+                      <div
+                        className="rounded-2xl mb-5 relative overflow-hidden"
+                        style={{
+                          background: 'var(--color-primary)',
+                          padding: '32px 28px',
+                          boxShadow: '0 8px 24px rgba(79,70,229,0.22), 0 2px 8px rgba(79,70,229,0.1)',
+                        }}
+                      >
+                        {/* subtle texture */}
+                        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, white 0%, transparent 60%)' }} />
+
+                        <p
+                          className="text-[11px] font-semibold tracking-widest uppercase mb-3"
+                          style={{ color: 'rgba(255,255,255,0.55)', letterSpacing: '0.12em' }}
+                        >
+                          예상 세액공제 환급액
+                        </p>
+
+                        {/* 핵심: 숫자와 단위 확실히 분리 */}
+                        <div className="flex items-baseline gap-1.5 mb-1">
+                          <span
+                            className="font-bold tracking-tight"
+                            style={{ fontSize: '52px', lineHeight: 1, color: 'white' }}
+                          >
+                            {Math.round(savingsData.estimated_refund / 10000 * 10) / 10 % 1 === 0
+                              ? (savingsData.estimated_refund / 10000).toLocaleString()
+                              : (savingsData.estimated_refund / 10000).toLocaleString()}
+                          </span>
+                          <span
+                            className="font-semibold"
+                            style={{ fontSize: '20px', color: 'rgba(255,255,255,0.6)', marginBottom: '4px' }}
+                          >
+                            만원
+                          </span>
+                        </div>
+
+                        <p
+                          className="text-[13px]"
+                          style={{ color: 'rgba(255,255,255,0.5)' }}
+                        >
+                          세액공제율 {savingsData.income_range === 'over' ? '13.2%' : '16.5%'} 기준 —
+                          {' '}
+                          <span style={{ color: 'rgba(255,255,255,0.75)' }}>지방소득세 포함</span>
+                        </p>
+                      </div>
+
+                      {/* Stats – 비대칭: 총납입액은 따로 크게, 세부는 작은 행 목록 */}
+                      <div
+                        className="rounded-xl p-5 mb-3"
+                        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
+                      >
+                        {/* 총납입액 – 이 영역에서 가장 크게 */}
+                        <div className="flex items-baseline justify-between mb-4 pb-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                          <span className="text-[13px] font-medium" style={{ color: 'var(--color-text-muted)' }}>총 납입액</span>
+                          <div className="flex items-baseline gap-1">
+                            <span className="font-bold" style={{ fontSize: '28px', color: 'var(--color-text-primary)', lineHeight: 1 }}>
+                              {((savingsData.pension_savings_paid + savingsData.irp_paid) / 10000).toLocaleString()}
+                            </span>
+                            <span className="text-[15px] font-medium" style={{ color: 'var(--color-text-muted)' }}>만원</span>
+                          </div>
+                        </div>
+
+                        {/* 세부항목 – 작고 질서정연한 행 목록 */}
+                        <div className="space-y-3">
+                          {[
+                            { label: '총 급여 구간', value: savingsData.income_range === 'over' ? '5,500만원 초과' : '5,500만원 이하' },
+                            { label: '연금저축 납입', value: `${(savingsData.pension_savings_paid / 10000).toLocaleString()}만원` },
+                            { label: 'IRP 납입', value: `${(savingsData.irp_paid / 10000).toLocaleString()}만원` },
+                            { label: '공제 대상 금액', value: `${(savingsData.deductible_amount / 10000).toLocaleString()}만원` },
+                          ].map(({ label, value }) => (
+                            <div key={label} className="flex items-center justify-between">
+                              <span className="text-[13px]" style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+                              <span className="text-[14px] font-semibold" style={{ color: 'var(--color-text-primary)' }}>{value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 세액공제율 텍스트 하이라이트 – 알약 태그 대신 inline highlight */}
+                      <div
+                        className="px-4 py-3 rounded-xl mb-5 flex items-center gap-3"
+                        style={{ background: '#EEF2FF', border: '1px solid #C7D2FE' }}
+                      >
+                        <span className="text-[13px] font-medium" style={{ color: '#4338CA' }}>
+                          적용 세액공제율 <strong style={{ fontSize: '15px' }}>{savingsData.income_range === 'over' ? '13.2%' : '16.5%'}</strong>
+                          {' '}(총급여 {savingsData.income_range === 'over' ? '5,500만원 초과' : '5,500만원 이하'} 기준)
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      className="rounded-3xl p-10 mb-4 text-center"
+                      style={{ background: 'white', border: '2px dashed rgba(90,50,250,0.15)', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+                    >
+                      <span className="material-symbols-outlined text-5xl block mb-3" style={{ color: '#c4b5fd', fontVariationSettings: "'FILL' 1" }}>savings</span>
+                      <p className="font-bold text-[16px] mb-1" style={{ color: '#0f0f13' }}>저장된 절세 정보가 없습니다</p>
+                      <p className="text-sm" style={{ color: '#94a3b8' }}>진단 시뮬레이터를 통해 결과를 저장해보세요.</p>
+                    </div>
+                  )}
+
+                  {/* CTA Card – 버튼에 hover/active 손맛 */}
+                  <div
+                    className="rounded-xl p-5 mb-4"
+                    style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
+                  >
+                    <div className="mb-4">
+                      <p className="font-semibold text-[15px]" style={{ color: 'var(--color-text-primary)' }}>다시 진단해보기</p>
+                      <p className="text-[13px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>납입액을 조정하면 환급액이 얼마나 달라지는지 확인하세요.</p>
+                    </div>
                     <Link
                       href="/diagnose"
-                      className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-full text-xs font-semibold transition-colors"
-                      style={{ background: 'var(--color-secondary)', color: 'white' }}
+                      className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-semibold text-[14px] text-white"
+                      style={{
+                        background: 'var(--color-primary)',
+                        boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
+                        transition: 'transform 0.12s ease, box-shadow 0.12s ease',
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 16px rgba(79,70,229,0.35)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(79,70,229,0.25)'; }}
+                      onMouseDown={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(0.97)'; }}
+                      onMouseUp={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>query_stats</span>
-                      다시 진단하기
+                      진단 시뮬레이터 열기
                     </Link>
                   </div>
-                </div>
-              </div>
 
-              <p className="text-xs text-center" style={{ color: 'var(--color-outline)', lineHeight: 1.6 }}>
-                실제 세액공제액은 결정세액 및 다른 공제 항목에 따라 달라질 수 있습니다. 중요한 결정 전 세무 전문가와 상담하세요.
-              </p>
-              </>
+                  <p className="text-center text-[11px]" style={{ color: '#94a3b8', lineHeight: 1.7 }}>
+                    실제 세액공제액은 결정세액 및 다른 공제 항목에 따라 달라질 수 있습니다.<br/>중요한 결정 전 세무 전문가와 상담하세요.
+                  </p>
+                </>
               )}
             </div>
           </main>
@@ -803,50 +896,41 @@ export default function ChatPage() {
         {sidebarView === 'chat' && (
         <main
           className="flex-1 overflow-y-auto relative"
-          style={{ paddingBottom: '160px' }}
+          style={{ paddingBottom: '180px', background: 'var(--color-surface-2)' }}
         >
-          {/* Ambient gradient */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-30"
-            style={{
-              background: 'radial-gradient(circle at top right, rgba(211,228,254,0.5) 0%, transparent 50%)',
-            }}
-          />
-
-          <div className="relative z-10 px-4 md:px-10 py-6 space-y-6 max-w-4xl mx-auto">
+          <div className="px-4 md:px-8 py-8 space-y-5 max-w-3xl mx-auto">
             {messages.map((msg, idx) =>
               msg.role === 'ai' ? (
-                <div key={msg.id} className="flex gap-3 max-w-[85%]" style={{ animation: `chatFadeIn 0.35s ease-out ${idx * 0.05}s both` }}>
+                <div key={msg.id} className="flex gap-3 max-w-[88%]" style={{ animation: `chatFadeIn 0.3s ease-out ${idx * 0.04}s both` }}>
                   <AiAvatar />
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <span className="text-xs ml-1" style={{ color: 'var(--color-outline)' }}>
-                      Tax-i AI
+                  <div className="flex flex-col gap-1 min-w-0 mt-1">
+                    <span className="text-[12px] ml-1 font-bold" style={{ color: '#64748b' }}>
+                      Tax-i 기사님
                     </span>
                     <div
-                      className="p-4 rounded-2xl rounded-tl-sm text-sm leading-relaxed"
+                      className="py-4 px-5 rounded-2xl rounded-tl-none text-[15px] leading-relaxed"
                       style={{
                         background: 'white',
-                        border: '1px solid rgba(199,196,216,0.2)',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
-                        color: 'var(--color-on-background)',
+                        color: '#1e293b',
                         whiteSpace: 'pre-wrap',
+                        boxShadow: '0 2px 16px rgba(0,0,0,0.07)',
+                        border: '1px solid rgba(0,0,0,0.04)',
                       }}
                     >
                       {msg.isTyping ? <TypingDots /> : formatText(msg.text, msg.sources)}
-                      {/* Sources — 콤팝트 쳩 */}
                       {msg.sources && msg.sources.length > 0 && (
                         <div
-                          className="mt-3 pt-2.5"
-                          style={{ borderTop: '1px solid rgba(199,196,216,0.2)' }}
+                          className="mt-3 pt-3"
+                          style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}
                         >
-                          <div className="flex items-center gap-1 mb-1.5">
+                          <div className="flex items-center gap-1.5 mb-2">
                             <span
                               className="material-symbols-outlined"
-                              style={{ fontSize: '13px', color: 'var(--color-outline)' }}
+                              style={{ fontSize: '14px', color: '#94a3b8' }}
                             >
                               library_books
                             </span>
-                            <span className="text-xs" style={{ color: 'var(--color-outline)' }}>
+                            <span className="text-[12px] font-semibold" style={{ color: '#94a3b8' }}>
                               참조 자료
                             </span>
                           </div>
@@ -858,18 +942,17 @@ export default function ChatPage() {
                         </div>
                       )}
                     </div>
-                    {/* Quick Replies */}
                     {msg.quickReplies && msg.quickReplies.length > 0 && !msg.isTyping && (
-                      <div className="flex flex-wrap gap-2 mt-2">
+                      <div className="flex flex-wrap gap-2 mt-2 ml-1">
                         {msg.quickReplies.map((qr, i) => (
                           <button
                             key={i}
                             onClick={() => sendMessage(qr)}
                             disabled={loading}
-                            className="text-xs px-3 py-1.5 rounded-full border transition-colors"
+                            className="text-[13px] px-3.5 py-1.5 rounded-lg font-medium transition-colors"
                             style={{
-                              background: 'white',
-                              borderColor: 'var(--color-primary)',
+                              background: 'var(--color-surface)',
+                              border: '1px solid var(--color-border)',
                               color: 'var(--color-primary)',
                             }}
                           >
@@ -883,20 +966,17 @@ export default function ChatPage() {
               ) : (
                 <div
                   key={msg.id}
-                  className="flex gap-3 max-w-[85%] ml-auto justify-end"
-                  style={{ animation: `chatFadeIn 0.35s ease-out both` }}
+                  className="flex gap-3 max-w-[78%] ml-auto justify-end"
+                  style={{ animation: `chatFadeIn 0.3s ease-out both` }}
                 >
                   <div className="flex flex-col gap-1 items-end min-w-0">
-                    <span className="text-xs mr-1" style={{ color: 'var(--color-outline)' }}>
-                      나
-                    </span>
-                    <div
-                      className="p-4 rounded-2xl rounded-tr-sm text-sm leading-relaxed"
+                  <div
+                      className="py-3 px-4 rounded-xl rounded-tr-sm text-[15px] leading-relaxed"
                       style={{
                         background: 'var(--color-primary)',
                         color: 'white',
-                        boxShadow: '0 4px 20px rgba(79,70,229,0.15)',
                         whiteSpace: 'pre-wrap',
+                        boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
                       }}
                     >
                       {msg.text}
@@ -908,20 +988,15 @@ export default function ChatPage() {
             <div ref={chatEndRef} />
           </div>
         </main>
-        )}  {/* end sidebarView === 'chat' */}
+        )}
 
         {/* ── Input Area (chat 뷰에서만 표시) ── */}
         {sidebarView === 'chat' && (
         <div
           className="absolute bottom-0 left-0 right-0 z-20"
-          style={{
-            background: 'rgba(255,255,255,0.92)',
-            backdropFilter: 'blur(16px)',
-            borderTop: '1px solid rgba(199,196,216,0.3)',
-            boxShadow: '0 -4px 20px rgba(0,0,0,0.04)',
-          }}
+          style={{ background: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', paddingBottom: '16px' }}
         >
-          <div className="max-w-4xl mx-auto px-4 md:px-8 py-3">
+          <div className="max-w-3xl mx-auto px-4 md:px-6 pt-3">
             {/* Quick actions */}
             <div className="flex gap-2 mb-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
               {QUICK_ACTIONS.map((action) => (
@@ -929,11 +1004,11 @@ export default function ChatPage() {
                   key={action}
                   onClick={() => sendMessage(action)}
                   disabled={loading}
-                  className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
+                  className="flex-shrink-0 px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
                   style={{
-                    background: 'var(--color-surface-container)',
-                    borderColor: 'rgba(199,196,216,0.5)',
-                    color: 'var(--color-on-surface-variant)',
+                    background: 'var(--color-surface-2)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text-secondary)',
                   }}
                 >
                   {action}
@@ -941,29 +1016,23 @@ export default function ChatPage() {
               ))}
             </div>
 
-            {/* Textarea + buttons */}
+            {/* Textarea + Send Button */}
             <div
-              className="flex items-end gap-2 p-2 rounded-xl border-2 transition-colors"
+              className="flex items-end gap-3 px-4 py-3 rounded-xl transition-all"
               style={{
-                background: 'var(--color-surface)',
-                borderColor: 'rgba(199,196,216,0.5)',
-              }}
-              onFocusCapture={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--color-primary)';
-              }}
-              onBlurCapture={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(199,196,216,0.5)';
+                background: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
               }}
             >
               <textarea
                 ref={textareaRef}
-                className="flex-1 bg-transparent border-none outline-none resize-none py-2 text-sm leading-relaxed"
+                className="flex-1 bg-transparent border-none outline-none resize-none text-[15px] leading-relaxed"
                 style={{
-                  color: 'var(--color-on-background)',
-                  minHeight: '40px',
-                  maxHeight: '128px',
+                  minHeight: '24px',
+                  maxHeight: '120px',
+                  color: 'var(--color-text-primary)',
                 }}
-                placeholder="연금, 세액공제, IRP에 대해 자유롭게 질문하세요…"
+                placeholder="연금, 세액공제, IRP에 대해 편하게 질문해 주세요."
                 rows={1}
                 value={input}
                 onChange={(e) => {
@@ -976,35 +1045,31 @@ export default function ChatPage() {
               <button
                 onClick={() => sendMessage(input)}
                 disabled={loading || !input.trim()}
-                className="p-2 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
+                className="flex items-center justify-center flex-shrink-0 rounded-lg transition-all"
                 style={{
-                  background: loading || !input.trim() ? 'rgba(199,196,216,0.5)' : 'var(--color-primary)',
-                  color: 'white',
+                  width: '36px',
+                  height: '36px',
+                  background: loading || !input.trim() ? 'var(--color-surface-3)' : 'var(--color-primary)',
+                  color: loading || !input.trim() ? 'var(--color-text-muted)' : 'white',
                 }}
               >
                 {loading ? (
                   <span
-                    className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-                    style={{ animation: 'spin 0.7s linear infinite' }}
+                    className="w-4 h-4 border-2 rounded-full"
+                    style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'spin 0.7s linear infinite' }}
                   />
                 ) : (
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                    send
-                  </span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>send</span>
                 )}
               </button>
             </div>
 
-            {/* Disclaimer */}
-            <p
-              className="text-center text-xs mt-2"
-              style={{ color: 'rgba(70,69,85,0.5)', lineHeight: 1.5 }}
-            >
-              Tax-i AI는 공식 자료 기반으로 답변하지만 중요한 결정 전 반드시 세무 전문가와 상담하세요.
+            <p className="text-center text-[11px] mt-2 font-medium" style={{ color: '#94a3b8' }}>
+              Tax-i 기사님은 공식 자료 기반으로 안내드립니다. 최종 결정 전 세무 전문가 상담을 권장합니다.
             </p>
           </div>
         </div>
-        )}  {/* end sidebarView === 'chat' input area */}
+        )}
       </div>
 
       {/* Global animations */}

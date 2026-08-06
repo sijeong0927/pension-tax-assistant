@@ -4,9 +4,8 @@ import bcrypt
 from jose import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+from supabase import Client
 from app.db.session import get_db
-from app.models.user import User
 
 SECRET_KEY = os.getenv("SECRET_KEY", "your_super_secret_jwt_key_here")
 ALGORITHM = "HS256"
@@ -15,14 +14,20 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "4320
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
+class UserDict(dict):
+    """attribute 접근(.id, .email, .name) 지원용 wrapper"""
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"'UserDict' object has no attribute '{name}'")
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    # bcrypt.checkpw는 bytes 입력을 필요로 함
     plain_bytes = plain_password.encode('utf-8')
     hashed_bytes = hashed_password.encode('utf-8')
     return bcrypt.checkpw(plain_bytes, hashed_bytes)
 
 def get_password_hash(password: str) -> str:
-    # bcrypt.hashpw로 salt 생성 및 해싱 후 문자열로 반환
     pwd_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
@@ -37,7 +42,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(token: str = Depends(oauth2_scheme), db: Client = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -51,12 +56,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     except Exception:
         raise credentials_exception
     
-    user = db.query(User).filter(User.email == email).first()
-    if user is None:
+    response = db.table("users").select("*").eq("email", email).execute()
+    users = response.data
+    if not users:
         raise credentials_exception
-    return user
+    return UserDict(users[0])
 
-def get_current_user_optional(token: str = Depends(oauth2_scheme_optional), db: Session = Depends(get_db)):
+def get_current_user_optional(token: str = Depends(oauth2_scheme_optional), db: Client = Depends(get_db)):
     if not token:
         return None
     try:
@@ -64,6 +70,10 @@ def get_current_user_optional(token: str = Depends(oauth2_scheme_optional), db: 
         email: str = payload.get("sub")
         if email is None:
             return None
-        return db.query(User).filter(User.email == email).first()
+        response = db.table("users").select("*").eq("email", email).execute()
+        users = response.data
+        if not users:
+            return None
+        return UserDict(users[0])
     except Exception:
         return None
