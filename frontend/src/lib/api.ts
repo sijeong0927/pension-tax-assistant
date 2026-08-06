@@ -8,7 +8,9 @@
  */
 
 const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  'https://tax-i-ef90.onrender.com';
 
 import { getAuthToken } from './auth';
 
@@ -285,7 +287,7 @@ export async function sendQueryStream(
         }
       }
     }
-    
+
     callbacks.onDone?.();
   } catch (error: any) {
     callbacks.onError?.(error.message);
