@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="taxiBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#3730A3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Squircle Base for max visibility on small tabs -->
+  <rect width="512" height="512" rx="120" fill="url(#taxiBg)"/>
+
+  <!-- Taxi Top Cap / Taxi Light (Neon Yellow Accent) -->
+  <path d="M190 96h132c12 0 20 8 20 20v28h-172v-28c0-12 8-20 20-20z" fill="#FBBF24"/>
+
+  <!-- Crisp Solid White Bold Taxi Graphic -->
+  <path d="M136 180l-36 90v150c0 14 10 24 24 24h24c14 0 24-10 24-24v-24h200v24c0 14 10 24 24 24h24c14 0 24-10 24-24V270l-36-90H136zm36 36h160l18 48H154l18-48zm-16 136c-15.5 0-28-12.5-28-28s12.5-28 28-28 28 12.5 28 28-12.5 28-28 28zm204 0c-15.5 0-28-12.5-28-28s12.5-28 28-28 28 12.5 28 28-12.5 28-28 28z" fill="#FFFFFF"/>
+</svg>
