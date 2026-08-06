@@ -115,8 +115,8 @@ body {
 
 /* ── Hero 컴포넌트 ── */
 .hero-icon-circle {
-  width: 140px;
-  height: 140px;
+  width: 96px;
+  height: 96px;
   border-radius: 9999px;
   display: flex;
   align-items: center;
@@ -125,28 +125,39 @@ body {
   box-shadow: 0 8px 32px rgba(53, 37, 205, 0.12);
   border: 1px solid rgba(199, 196, 216, 0.3);
 }
+@media (min-width: 768px) {
+  .hero-icon-circle {
+    width: 130px;
+    height: 130px;
+  }
+}
 
 .hero-headline {
   font-family: 'Hanken Grotesk', sans-serif;
-  font-size: clamp(28px, 5vw, 42px);
+  font-size: clamp(22px, 4.5vw, 40px);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.25;
   letter-spacing: -0.02em;
   color: var(--color-on-background);
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .hero-subheadline {
-  font-size: clamp(20px, 3vw, 28px);
+  font-size: clamp(15px, 2.8vw, 24px);
   font-weight: 600;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
   color: var(--color-on-surface-variant);
+  display: inline-block;
+  margin-top: 4px;
 }
 
 .hero-body {
-  font-size: 18px;
-  line-height: 1.7;
+  font-size: clamp(14px, 2.5vw, 18px);
+  line-height: 1.6;
   color: var(--color-on-surface-variant);
   max-width: 560px;
+  word-break: keep-all;
 }
 
 /* ── Action Cards ── */
@@ -155,18 +166,25 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 40px;
-  border-radius: 16px;
+  padding: 24px 20px;
+  border-radius: 20px;
   text-align: center;
   position: relative;
   overflow: hidden;
   text-decoration: none;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+@media (min-width: 768px) {
+  .action-card {
+    padding: 36px 32px;
+    border-radius: 24px;
+  }
 }
 
 .action-card:hover {
@@ -179,14 +197,22 @@ body {
 }
 
 .card-icon-wrap {
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   border-radius: 9999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   transition: transform 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .card-icon-wrap {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 8px;
+  }
 }
 
 .action-card:hover .card-icon-wrap {
@@ -203,21 +229,23 @@ body {
 
 .card-title {
   font-family: 'Hanken Grotesk', sans-serif;
-  font-size: 22px;
-  font-weight: 600;
+  font-size: clamp(17px, 2.5vw, 22px);
+  font-weight: 700;
   color: var(--color-on-background);
   line-height: 1.3;
+  word-break: keep-all;
 }
 
 .card-body {
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: clamp(13px, 2vw, 15px);
+  line-height: 1.55;
   color: var(--color-on-surface-variant);
+  word-break: keep-all;
 }
 
 .card-cta {
-  margin-top: 16px;
-  padding: 10px 32px;
+  margin-top: 12px;
+  padding: 10px 24px;
   border-radius: 9999px;
   font-size: 14px;
   font-weight: 600;
