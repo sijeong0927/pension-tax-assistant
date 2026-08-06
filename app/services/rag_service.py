@@ -282,6 +282,106 @@ class RAGService:
             )
         return retrieved
 
+    @staticmethod
+    def _linked_document(
+        *,
+        document_id: str,
+        text: str,
+        metadata: dict[str, Any],
+    ) -> RetrievedDocument:
+        return RetrievedDocument(
+            document_id=document_id,
+            text=text,
+            title=str(metadata.get("title") or document_id),
+            category=str(metadata.get("category") or "unknown"),
+            source_title=str(metadata.get("source_title") or ""),
+            source_url=str(metadata.get("source_url") or ""),
+            effective_date=str(metadata.get("effective_date") or ""),
+            last_verified=str(metadata.get("last_verified") or ""),
+            source_chunk_ids=str(metadata.get("source_chunk_ids") or ""),
+            provenance_verified=bool(metadata.get("provenance_verified", False)),
+            relevance_score=0.0,
+        )
+
+    def retrieve_with_linked_evidence(
+        self,
+        question: str,
+        *,
+        top_k: int | None = None,
+    ) -> list[RetrievedDocument]:
+        """Add a selected FAQ's linked official evidence without re-searching."""
+        retrieved = self.retrieve(question, top_k=top_k)
+        return self._add_linked_evidence(retrieved)
+
+    def _add_linked_evidence(
+        self,
+        retrieved: Sequence[RetrievedDocument],
+    ) -> list[RetrievedDocument]:
+        base_documents = list(
+            retrieved[: self.settings.rag_context_document_limit]
+        )
+        remaining = self.settings.rag_context_document_limit - len(base_documents)
+        if remaining <= 0:
+            return base_documents
+
+        existing_ids = {document.document_id for document in base_documents}
+        requested_ids: list[str] = []
+        for document in base_documents:
+            if not document.document_id.startswith("faq_"):
+                continue
+            linked_for_faq = 0
+            for raw_chunk_id in document.source_chunk_ids.split(","):
+                chunk_id = raw_chunk_id.strip()
+                if (
+                    not chunk_id
+                    or not chunk_id.startswith("pdf_")
+                    or chunk_id in existing_ids
+                    or chunk_id in requested_ids
+                ):
+                    continue
+                requested_ids.append(chunk_id)
+                linked_for_faq += 1
+                remaining -= 1
+                if (
+                    linked_for_faq
+                    >= self.settings.rag_linked_evidence_per_faq
+                    or remaining == 0
+                ):
+                    break
+            if remaining == 0:
+                break
+
+        if not requested_ids:
+            return base_documents
+
+        try:
+            result = self._get_collection().get(
+                ids=requested_ids,
+                include=["documents", "metadatas"],
+            )
+        except Exception:
+            return base_documents
+
+        ids = [str(document_id) for document_id in result.get("ids") or []]
+        texts = [str(text) for text in result.get("documents") or []]
+        metadatas = [dict(metadata or {}) for metadata in result.get("metadatas") or []]
+        if not (len(ids) == len(texts) == len(metadatas)):
+            return base_documents
+
+        linked_by_id = {
+            document_id: self._linked_document(
+                document_id=document_id,
+                text=text,
+                metadata=metadata,
+            )
+            for document_id, text, metadata in zip(ids, texts, metadatas)
+        }
+        return base_documents + [
+            linked_by_id[chunk_id]
+            for chunk_id in requested_ids
+            if chunk_id in linked_by_id
+        ]
+
     def answer_question_stream(self, question: str, chat_history: list[dict[str, Any]] | None = None):
         import json
         if is_personal_calculation_request(question):
@@ -292,7 +392,7 @@ class RAGService:
             )
             return
 
-        retrieved = self.retrieve(question)
+        retrieved = self.retrieve_with_linked_evidence(question)
         if not retrieved:
             yield f"event: sources\ndata: []\n\n"
             yield f"event: message\ndata: {json.dumps({'content': NO_RELEVANT_CONTEXT_MESSAGE}, ensure_ascii=False)}\n\n"
@@ -388,7 +488,7 @@ class RAGService:
         if is_personal_calculation_request(question):
             return self._calculation_handoff_answer()
 
-        retrieved = self.retrieve(question)
+        retrieved = self.retrieve_with_linked_evidence(question)
         return self.answer_from_retrieved_documents(
             question,
             retrieved,

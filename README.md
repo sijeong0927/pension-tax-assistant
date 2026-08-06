@@ -14,7 +14,7 @@ Python 서비스가 담당하고, LLM은 공식 자료 검색과 조건 설명�
 | --- | --- |
 | 진단 | 총급여, 연금저축, IRP 납입액 기반 결정론적 계산 |
 | 시뮬레이터 | 납입액 조정, 계좌별 한도, 예상 세액공제 효과 |
-| RAG | ChromaDB Vector + 한국어 BM25 + 로컬 RRF 재정렬 |
+| RAG | ChromaDB Vector + 한국어 BM25 + 로컬 RRF 재정렬 + FAQ 연결 공식 PDF 근거 |
 | 챗봇 | SSE 스트리밍, 공식 출처, 추천 질문 3개 |
 | 대화 이력 | SQLite 세션 목록·조회·삭제와 최근 대화 문맥 |
 | 인증·저장 | 이메일/JWT 인증과 사용자별 최신 진단 결과 저장 |
@@ -43,7 +43,10 @@ flowchart LR
 
 ## 계산 기준
 
-계산은 `app/services/tax_credit_service.py`에서 처리합니다.
+두 화면이 서로 다른 결정론적 Python 서비스로 계산하며, 두 곳 모두 LLM은 계산에
+관여하지 않습니다.
+
+### 진단 화면 — `app/services/tax_credit_service.py`
 
 | 현재 엔진의 총급여 구간 | 예상 공제 효과율 |
 | --- | ---: |
@@ -59,10 +62,30 @@ flowchart LR
 `estimated_tax_liability`는 UI 시뮬레이션을 위한 내부 추정치입니다. 예상 세액공제액과
 예상 환급액은 실제 신고 결과나 최종 환급액을 의미하지 않습니다.
 
+### 챗봇 내 간이 연말정산 시뮬레이터 — `app/services/lite_tax_service.py`
+
+챗봇 화면(`/chat`)에 통합된 별도의 계산 위젯입니다(`POST /api/v1/lite-tax`). 로그인
+사용자 또는 세션에 저장된 연금저축·IRP 납입액을 자동으로 불러와 계산에 반영합니다.
+
+1. 총급여에서 식대 비과세(월 20만 원, 연 240만 원 한도)를 제외해 과세대상 총급여를 구합니다.
+2. 근로소득공제(구간별 누진 공제, 최대 2,000만 원), 기본 인적공제(1인당 150만 원),
+   4대보험료(국민연금 4.5%·건강보험 3.545%·장기요양보험료의 12.95%·고용보험 0.9%,
+   국민연금은 월 265,500원 상한)를 차감해 과세표준을 산출합니다.
+3. 종합소득세 기본세율(과세표준 1,400만 원 이하 6%부터 10억 원 초과 45%까지 8단계
+   누진세율)로 산출세액을 계산합니다.
+4. 근로소득 세액공제(산출세액 130만 원 이하분 55%, 초과분 30%, 총급여 구간별 공제
+   한도 74만~20만 원)와 연금계좌 세액공제(연금저축 600만 원·합산 900만 원 한도,
+   총급여 5,500만 원 이하 15%·초과 12%)를 적용해 결정세액을 구합니다.
+5. 기납부세액을 입력하지 않으면 결정세액의 105%를 추정치로 사용하고, 결정세액과의
+   차액(지방소득세 10% 포함)으로 환급(`REFUND`)·추가납부(`PAYMENT`) 여부를 판단합니다.
+
+이 계산도 참고용 시뮬레이션이며, 실제 연말정산 결과와 다를 수 있습니다.
+
 ## 지식 검색
 
-지식베이스에는 가이드 1개, FAQ 59개와 2025 연말정산 공식 가이드 PDF가 포함됩니다.
-각 문서는 공식 출처명, URL, 기준일과 검증일을 관리합니다.
+지식베이스에는 가이드 1개, FAQ 60개와 국세청·국가법령정보센터·금융위원회의 검증된
+공식 PDF가 포함됩니다. 각 FAQ는 답변을 뒷받침하는 PDF 청크 ID를 보유하고, 각 문서는
+공식 출처명, URL, 기준일과 검증일을 관리합니다.
 
 ```mermaid
 flowchart LR
@@ -70,7 +93,10 @@ flowchart LR
     Q --> B["BM25 검색"]
     V --> R["로컬 RRF 재정렬"]
     B --> R
-    R --> G{"관련 근거 존재"}
+    R --> F{"FAQ 선택됨?"}
+    F -->|"예"| P["연결된 공식 PDF 청크 보강"]
+    F -->|"아니오"| G{"관련 근거 존재"}
+    P --> G
     G -->|"예"| L["근거 기반 답변"]
     G -->|"아니요"| N["근거 부족 안내"]
 ```
@@ -112,6 +138,13 @@ RAG를 사용하려면 `.env`에 `OPENAI_API_KEY`와 개발용 `SECRET_KEY`를 �
 ```powershell
 python scripts/index_tax_faq.py --strict-provenance
 python scripts/index_pdf.py
+python scripts/index_pdf.py --pdf app/data/pdfs/income_tax_act_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/income_tax_decree_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/special_tax_treatment_act_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/retirement_benefits_act_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/fsc_2025_pension_savings_white_paper.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/fsc_2018_retirement_pension_risk_assets.pdf
+python scripts/validate_faq_pdf_links.py
 ```
 
 ### 프론트엔드

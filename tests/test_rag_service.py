@@ -12,7 +12,11 @@ from app.core.config import ConfigurationError, RAGSettings
 from app.core.prompts import RAG_SYSTEM_PROMPT
 from app.services.chat_calculation_guard import CALCULATION_HANDOFF_MESSAGE
 from app.services.knowledge_base import load_knowledge_base
-from app.services.rag_service import RAGService, RAGServiceError
+from app.services.rag_service import (
+    RAGService,
+    RAGServiceError,
+    RetrievedDocument,
+)
 
 
 class FakeEmbeddings:
@@ -123,6 +127,22 @@ class FakeCollection:
         self.upsert_payload = kwargs
 
 
+class LinkedEvidenceCollection(FakeCollection):
+    def __init__(self, records: dict[str, tuple[str, dict[str, Any]]]) -> None:
+        super().__init__()
+        self.records = records
+        self.get_calls: list[list[str]] = []
+
+    def get(self, *, ids: list[str], **_: Any) -> dict[str, Any]:
+        self.get_calls.append(ids)
+        found_ids = [document_id for document_id in ids if document_id in self.records]
+        return {
+            "ids": found_ids,
+            "documents": [self.records[document_id][0] for document_id in found_ids],
+            "metadatas": [self.records[document_id][1] for document_id in found_ids],
+        }
+
+
 def make_settings(tmp_path: Path) -> RAGSettings:
     return RAGSettings(
         openai_api_key="test-key",
@@ -136,10 +156,40 @@ def make_settings(tmp_path: Path) -> RAGSettings:
         rag_top_k=4,
         rag_candidate_k=12,
         rag_min_relevance_score=0.35,
+        rag_context_document_limit=6,
+        rag_linked_evidence_per_faq=2,
         rag_max_index_documents=100,
         rag_max_pdf_documents=1000,
         rag_max_pdf_embedding_requests=50,
     )
+
+
+def retrieved_faq(*, source_chunk_ids: str) -> RetrievedDocument:
+    return RetrievedDocument(
+        document_id="faq_01",
+        text="질문: 연금계좌 한도는?\n답변: 공식 기준을 확인하세요.",
+        title="연금계좌 한도",
+        category="납입 및 공제한도",
+        source_title="국세청 안내",
+        source_url="https://example.test/official",
+        effective_date="2025-01-01",
+        last_verified="2026-08-04",
+        source_chunk_ids=source_chunk_ids,
+        provenance_verified=True,
+        relevance_score=0.9,
+    )
+
+
+def linked_pdf_metadata() -> dict[str, Any]:
+    return {
+        "title": "2025년 원천징수의무자를 위한 연말정산 신고안내 183페이지",
+        "category": "연말정산 신고안내",
+        "source_title": "2025년 원천징수의무자를 위한 연말정산 신고안내",
+        "source_url": "https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?cntntsId=238938&mi=2304",
+        "effective_date": "2025-01-01",
+        "last_verified": "2026-08-04",
+        "provenance_verified": True,
+    }
 
 
 def test_answer_question_returns_sources(tmp_path: Path) -> None:
@@ -400,10 +450,84 @@ def test_general_faq_returns_preindexed_pdf_chunk_ids(tmp_path: Path) -> None:
     answer = service.answer_question("연도 중 퇴사하면 언제 정산하나요?")
 
     assert answer.sources[0].source_chunk_ids == [
-        "pdf_page_103_chunk_00",
-        "pdf_page_103_chunk_01",
-        "pdf_page_106_chunk_00",
+        "pdf_nts-2025-year-end-tax-guide_54a1d1c415968283_page_103_chunk_001",
+        "pdf_nts-2025-year-end-tax-guide_54a1d1c415968283_page_103_chunk_002",
+        "pdf_nts-2025-year-end-tax-guide_54a1d1c415968283_page_106_chunk_001",
     ]
+
+
+def test_selected_faq_adds_linked_pdf_evidence_in_declared_order(
+    tmp_path: Path,
+) -> None:
+    first_chunk = "pdf_nts-2025-year-end-tax-guide_54a1d1c415968283_page_183_chunk_001"
+    second_chunk = "pdf_nts-2025-year-end-tax-guide_54a1d1c415968283_page_183_chunk_002"
+    collection = LinkedEvidenceCollection(
+        {
+            first_chunk: ("[공식 PDF - page 183] 첫 번째 근거", linked_pdf_metadata()),
+            second_chunk: ("[공식 PDF - page 183] 두 번째 근거", linked_pdf_metadata()),
+        }
+    )
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=FakeOpenAI(),
+        collection=collection,
+    )
+
+    documents = service._add_linked_evidence(
+        [retrieved_faq(source_chunk_ids=f"{first_chunk},{second_chunk}")]
+    )
+
+    assert [document.document_id for document in documents] == [
+        "faq_01",
+        first_chunk,
+        second_chunk,
+    ]
+    assert collection.get_calls == [[first_chunk, second_chunk]]
+    assert all(document.provenance_verified for document in documents)
+    assert documents[1].relevance_score == 0.0
+
+
+def test_linked_evidence_only_uses_pdf_chunk_ids_and_respects_context_limit(
+    tmp_path: Path,
+) -> None:
+    first_chunk = "pdf_nts-2025-year-end-tax-guide_54a1d1c415968283_page_183_chunk_001"
+    second_chunk = "pdf_nts-2025-year-end-tax-guide_54a1d1c415968283_page_183_chunk_002"
+    collection = LinkedEvidenceCollection(
+        {
+            first_chunk: ("첫 번째 근거", linked_pdf_metadata()),
+            second_chunk: ("두 번째 근거", linked_pdf_metadata()),
+        }
+    )
+    settings = replace(
+        make_settings(tmp_path),
+        rag_context_document_limit=2,
+    )
+    service = RAGService(
+        settings=settings,
+        openai_client=FakeOpenAI(),
+        collection=collection,
+    )
+
+    documents = service._add_linked_evidence(
+        [retrieved_faq(source_chunk_ids=f"faq_01,{first_chunk},{second_chunk}")]
+    )
+
+    assert [document.document_id for document in documents] == ["faq_01", first_chunk]
+    assert collection.get_calls == [[first_chunk]]
+
+
+def test_missing_or_unreadable_linked_evidence_does_not_break_answer_context(
+    tmp_path: Path,
+) -> None:
+    chunk_id = "pdf_nts-2025-year-end-tax-guide_54a1d1c415968283_page_183_chunk_001"
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=FakeOpenAI(),
+        collection=LinkedEvidenceCollection({}),
+    )
+    original = retrieved_faq(source_chunk_ids=chunk_id)
+
+    assert service._add_linked_evidence([original]) == [original]
 
 
 def test_index_document_limit_prevents_openai_call(tmp_path: Path) -> None:

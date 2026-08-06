@@ -36,7 +36,9 @@ OPENAI_API_KEY=발급받은_키
 | `RAG_CANDIDATE_K` | `12` | Vector·BM25 검색별 최대 후보 수 |
 | `RAG_MIN_RELEVANCE_SCORE` | `0.35` | 리랭킹 후 답변 생성에 필요한 최소 검색 점수 |
 | `RAG_MAX_INDEX_DOCUMENTS` | `100` | 한 번에 임베딩할 수 있는 문서 수 |
-| `RAG_MAX_PDF_DOCUMENTS` | `1000` | PDF 인덱서가 한 번에 임베딩할 수 있는 최대 청크 수 |
+| `RAG_CONTEXT_DOCUMENT_LIMIT` | `6` | 답변 컨텍스트에 포함할 최대 문서 수 |
+| `RAG_LINKED_EVIDENCE_PER_FAQ` | `2` | 선택된 FAQ당 직접 보강할 공식 PDF 청크 수 |
+| `RAG_MAX_PDF_DOCUMENTS` | `1200` | PDF 인덱서가 한 번에 임베딩할 수 있는 최대 청크 수 |
 | `RAG_MAX_PDF_EMBEDDING_REQUESTS` | `50` | PDF 인덱서의 최대 임베딩 API 요청 수 |
 
 ## API 과사용 절대 금지
@@ -54,9 +56,9 @@ OpenAI API는 호출할 때마다 비용과 사용량이 발생하므로 다음 
 - 챗봇 API 엔드포인트를 추가할 때는 사용자별 속도 제한과 일일 호출량 제한을
   함께 구현한 뒤 공개합니다.
 
-코드에서도 답변 문서를 최대 8개, 검색 채널별 후보를 최대 32개, FAQ 1회 인덱싱
-문서를 최대 100개, PDF 인덱싱 문서를 최대 1,000개 및 임베딩 요청을 최대 50회,
-자동 재시도를 최대 1회로 제한합니다.
+코드에서는 답변 컨텍스트 문서를 최대 6개로 제한하고, 선택된 FAQ마다 연결된 공식 PDF 청크를 최대 2개 보강합니다.
+PDF 인덱싱 문서는 최대 1,200개, 임베딩 요청은 최대 50회,
+자동 재시도 횟수는 최대 1회로 제한합니다.
 
 임베딩 모델을 변경하면 기존 컬렉션과 벡터 차원이 달라질 수 있습니다. 이 경우
 새 `CHROMA_COLLECTION_NAME`을 사용하거나 생성된 `.chroma` 디렉터리를 다시
@@ -68,7 +70,7 @@ OpenAI API는 호출할 때마다 비용과 사용량이 발생하므로 다음 
 python scripts/index_tax_faq.py
 ```
 
-스크립트는 다음 항목을 검사한 뒤 FAQ 가이드 1개와 FAQ 41개를 저장합니다.
+스크립트는 다음 항목을 검사한 뒤 FAQ 가이드 1개와 FAQ 60개를 저장합니다.
 
 - 필수 필드와 날짜 형식
 - 문서 ID 및 질문 중복
@@ -88,6 +90,18 @@ python scripts/index_tax_faq.py --strict-provenance
 
 ```powershell
 python scripts/index_pdf.py
+```
+
+전체 FAQ의 연결 근거를 사용하려면 아래 공식 PDF도 같은 청크 설정으로 인덱싱합니다.
+
+```powershell
+python scripts/index_pdf.py --pdf app/data/pdfs/income_tax_act_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/income_tax_decree_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/special_tax_treatment_act_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/retirement_benefits_act_20260701.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/fsc_2025_pension_savings_white_paper.pdf
+python scripts/index_pdf.py --pdf app/data/pdfs/fsc_2018_retirement_pension_risk_assets.pdf
+python scripts/validate_faq_pdf_links.py
 ```
 
 인덱서는 청크 크기와 오버랩, 배치 크기를 검증하고 전체 청크 수와 임베딩 요청 수를 먼저
@@ -119,6 +133,7 @@ for source in result.sources:
 1. ChromaDB Vector 검색과 BM25 키워드 검색에서 각각 후보를 수집합니다.
 2. 중복 문서를 제거하고 RRF(Reciprocal Rank Fusion)와 조문·수치 일치 신호로
    후보를 결정론적으로 재정렬합니다.
+3. 최종 문서에 FAQ가 포함되면 `source_chunk_ids`에 선언된 공식 PDF 청크를 다시 검색하지 않고 ID로 조회해 컨텍스트 뒤에 보강합니다. FAQ당 최대 2개, 전체 최대 6개 문서로 제한하며, 청크가 아직 인덱싱되지 않았거나 조회에 실패하면 FAQ 검색 결과만 사용합니다.
 
 조문 번호, 금액과 비율은 BM25 토큰에서 보존됩니다. 최종 검색 점수가
 `RAG_MIN_RELEVANCE_SCORE`보다 낮으면 OpenAI 답변 생성을 호출하지 않고 근거 부족
@@ -152,7 +167,7 @@ for source in result.sources:
 
 ## 5. 출처 응답과 화면 표시
 
-채팅 API의 `sources`에는 출처명·URL·기준일과 함께 검색에 사용한
+채팅 API의 `sources`에는 검색 및 FAQ 연결로 사용한 출처명·URL·기준일과 함께
 `source_chunk_ids`, 최대 280자의 공백 정리된 `excerpt`를 반환하고 대화 이력에도
 같은 항목을 보존합니다. 검색 점수(`relevance_score`)는 내부 재정렬에만 사용하며
 API 응답, 저장 이력, 화면에는 포함하지 않습니다.

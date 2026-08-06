@@ -84,15 +84,21 @@ def _normalized(value: str) -> str:
     return re.sub(r"\s+", " ", normalized).strip()
 
 
+_PDF_CHUNK_ID_PATTERN = re.compile(
+    r"(?:pdf_page_\d{3}_chunk_\d{2,3}|"
+    r"pdf_[a-z0-9-]+_[0-9a-f]{16}_page_\d{3}_chunk_\d{3})"
+)
+
+
 def _source_chunk_ids(raw_document: dict[str, Any], prefix: str) -> str:
     raw_ids = raw_document.get("source_chunk_ids", [])
     if not isinstance(raw_ids, list) or not all(
         isinstance(chunk_id, str)
-        and re.fullmatch(r"pdf_page_\d{3}_chunk_\d{2,3}", chunk_id)
+        and _PDF_CHUNK_ID_PATTERN.fullmatch(chunk_id)
         for chunk_id in raw_ids
     ):
         raise KnowledgeBaseValidationError(
-            f"{prefix}.source_chunk_ids는 pdf_page_*_chunk_* 문자열 배열이어야 합니다."
+            f"{prefix}.source_chunk_ids는 PDF 청크 ID 문자열 배열이어야 합니다."
         )
     return ",".join(raw_ids)
 
