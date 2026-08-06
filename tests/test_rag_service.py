@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -64,6 +65,7 @@ class FakeCollection:
                         "source_url": "https://example.test/official",
                         "effective_date": "2026-01-01",
                         "last_verified": "2026-08-04",
+                        "source_chunk_ids": "faq_01",
                         "provenance_verified": True,
                     }
                 ]
@@ -118,6 +120,23 @@ def test_answer_question_returns_sources(tmp_path: Path) -> None:
     assert answer.sources[0].relevance_score == 0.9
     assert openai_client.responses.calls[0]["model"] == "gpt-4o-mini"
     assert "[문서 1]" in openai_client.responses.calls[0]["input"]
+
+
+def test_streamed_sources_include_excerpt_and_hide_relevance_score(
+    tmp_path: Path,
+) -> None:
+    service = RAGService(
+        settings=make_settings(tmp_path),
+        openai_client=FakeOpenAI(),
+        collection=FakeCollection(),
+    )
+
+    first_event = next(service.answer_question_stream("연금저축 한도는?"))
+    payload = json.loads(first_event.split("data: ", 1)[1].strip())
+
+    assert payload[0]["source_chunk_ids"] == ["faq_01"]
+    assert payload[0]["excerpt"] == "질문: 납입 한도는? 답변: 합산 900만 원입니다."
+    assert "relevance_score" not in payload[0]
 
 
 def test_answer_question_keeps_chat_history_in_generation_prompt(

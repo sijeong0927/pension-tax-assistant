@@ -6,17 +6,7 @@ import { fetchChatHistory, sendQueryStream, fetchSessions, deleteSession, fetchT
 import { isAuthenticated } from '@/lib/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface Source {
-  document_id?: string;
-  title?: string;
-  category?: string;
-  source_title?: string;
-  source_url?: string;
-  effective_date?: string;
-  last_verified?: string;
-  provenance_verified?: boolean;
-  relevance_score?: number;
-}
+type Source = SourceDoc;
 
 interface Message {
   id: string;
@@ -104,34 +94,67 @@ function CitationReference({ source, index }: { source: Source; index: number })
         {source.effective_date && (
           <span className="mt-1 block opacity-80">기준일: {source.effective_date}</span>
         )}
+        {source.source_chunk_ids && source.source_chunk_ids.length > 0 && (
+          <span className="mt-1 block opacity-80">
+            근거 청크: {source.source_chunk_ids.join(', ')}
+          </span>
+        )}
+        {source.excerpt && (
+          <span className="mt-2 block opacity-90">근거 발췌: {source.excerpt}</span>
+        )}
       </span>
     </span>
   );
 }
 
-function formatText(text: string, sources: Source[] = []) {
+function renderCitations(text: string, sources: Source[], keyPrefix: string) {
   const citationPattern = /\[문서\s*(\d+)\]/g;
+  const parts = text.split(citationPattern);
+
+  return parts.map((part, partIndex) => {
+    if (partIndex % 2 === 0) return part;
+
+    const sourceIndex = Number(part) - 1;
+    const source = sources[sourceIndex];
+    if (!source) return `[문서 ${part}]`;
+
+    return (
+      <CitationReference
+        key={`${keyPrefix}-citation-${partIndex}`}
+        source={source}
+        index={sourceIndex}
+      />
+    );
+  });
+}
+
+function formatText(text: string, sources: Source[] = []) {
+  const boldPattern = /(\*\*[^*\n]+\*\*)/g;
   const lines = text.split('\n');
 
   return lines.map((line, lineIndex) => {
-    const parts = line.split(citationPattern);
+    const segments = line.split(boldPattern);
 
     return (
       <span key={lineIndex}>
-        {parts.map((part, partIndex) => {
-          if (partIndex % 2 === 0) return part;
-
-          const sourceIndex = Number(part) - 1;
-          const source = sources[sourceIndex];
-          if (!source) return `[문서 ${part}]`;
-
-          return (
-            <CitationReference
-              key={`${lineIndex}-${partIndex}`}
-              source={source}
-              index={sourceIndex}
-            />
+        {segments.map((segment, segmentIndex) => {
+          const isBold = segment.startsWith('**') && segment.endsWith('**');
+          const content = isBold ? segment.slice(2, -2) : segment;
+          const renderedContent = renderCitations(
+            content,
+            sources,
+            `${lineIndex}-${segmentIndex}`,
           );
+
+          if (isBold) {
+            return (
+              <strong key={`${lineIndex}-${segmentIndex}`} className="font-semibold">
+                {renderedContent}
+              </strong>
+            );
+          }
+
+          return <span key={`${lineIndex}-${segmentIndex}`}>{renderedContent}</span>;
         })}
         {lineIndex < lines.length - 1 && <br />}
       </span>
@@ -183,11 +206,6 @@ function AiAvatar() {
     </div>
   );
 }
-function relevancePercent(score?: number) {
-  if (typeof score !== 'number' || Number.isNaN(score)) return null;
-  return `${Math.round(Math.max(0, Math.min(1, score)) * 100)}%`;
-}
-
 function pageLabel(source: Source) {
   const text = `${source.title ?? ''} ${source.document_id ?? ''}`;
   const koreanPage = text.match(/(\d+)페이지/);
@@ -199,46 +217,94 @@ function pageLabel(source: Source) {
   return null;
 }
 
-/** 콤팝트 한 줄짜리 출체 칩 */
-function SourceChip({ source, index }: { source: Source; index: number }) {
-  const relevance = typeof source.relevance_score === 'number'
-    ? `${Math.round(Math.max(0, Math.min(1, source.relevance_score)) * 100)}%`
-    : null;
-  const sourceName = source.source_title || '공식 출처 정보 미등록';
-  const shortSourceName = sourceName.length > 30 ? `${sourceName.slice(0, 30)}…` : sourceName;
+interface SourceGroup {
+  key: string;
+  source: Source;
+  chunks: Source[];
+}
 
-  const content = (
-    <div
-      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs"
-      style={{
-        background: 'rgba(229,238,255,0.6)',
-        border: '1px solid rgba(199,196,216,0.35)',
-        color: 'var(--color-on-surface-variant)',
-        maxWidth: '100%',
-      }}
-    >
-      <span
-        className="material-symbols-outlined flex-shrink-0"
-        style={{ fontSize: '13px', color: 'var(--color-primary)' }}
+function sourceGroupKey(source: Source) {
+  if (source.source_url) return `url:${source.source_url}`;
+  if (source.source_title) return `title:${source.source_title}`;
+  return `document:${source.document_id ?? source.title ?? 'unknown'}`;
+}
+
+function groupSources(sources: Source[]): SourceGroup[] {
+  const groups = new Map<string, SourceGroup>();
+
+  sources.forEach((source) => {
+    const key = sourceGroupKey(source);
+    const group = groups.get(key);
+    if (group) {
+      group.chunks.push(source);
+      return;
+    }
+    groups.set(key, { key, source, chunks: [source] });
+  });
+
+  return [...groups.values()];
+}
+
+function sourceLocation(source: Source, index: number) {
+  if (source.source_chunk_ids && source.source_chunk_ids.length > 0) {
+    return source.source_chunk_ids.join(', ');
+  }
+  return pageLabel(source) || source.category || `검색 근거 ${index + 1}`;
+}
+
+/** 동일 공식 출처의 검색 근거를 한 카드로 묶어 표시한다. */
+function SourceChip({ group }: { group: SourceGroup }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const sourceName = group.source.source_title || group.source.title || '공식 출처 정보 미등록';
+
+  return (
+    <div className="group relative">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-[#e5eeff] focus:outline-none focus:ring-2 focus:ring-offset-1"
+        style={{
+          background: 'rgba(229,238,255,0.6)',
+          border: '1px solid rgba(199,196,216,0.35)',
+          color: 'var(--color-on-surface-variant)',
+        }}
+        aria-label={`${sourceName} 검색 근거 ${group.chunks.length}개`}
+        aria-expanded={isExpanded}
+        onClick={() => setIsExpanded((expanded) => !expanded)}
       >
-        description
-      </span>
-      <span className="font-medium flex-shrink-0" style={{ color: 'var(--color-primary)' }}>
-        {index + 1}
-      </span>
-      <span className="truncate" style={{ minWidth: 0 }}>{shortSourceName}</span>
-      {relevance && (
         <span
-          className="flex-shrink-0 px-1.5 py-0.5 rounded-full font-semibold"
+          className="material-symbols-outlined flex-shrink-0"
+          style={{ fontSize: '15px', color: 'var(--color-primary)' }}
+        >
+          description
+        </span>
+        <span className="min-w-0 flex-1 break-words font-medium">{sourceName}</span>
+        <span
+          className="flex-shrink-0 rounded-full px-1.5 py-0.5 font-semibold"
           style={{ background: 'rgba(0,108,73,0.1)', color: 'var(--color-secondary)', fontSize: '10px' }}
         >
-          {relevance}
+          근거 {group.chunks.length}개
         </span>
-      )}
+      </button>
+      <div
+        role="tooltip"
+        className={`pointer-events-none absolute bottom-full left-0 z-30 mb-2 w-full min-w-72 max-w-lg rounded-lg px-3 py-3 text-left text-xs leading-relaxed shadow-lg transition-opacity duration-150 ${isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
+        style={{ background: 'var(--color-on-surface)', color: 'white' }}
+      >
+        <span className="block font-semibold">{sourceName}</span>
+        <span className="mt-1 block opacity-80">검색에 사용된 근거 청크</span>
+        <div className="mt-2 space-y-2">
+          {group.chunks.map((chunk, index) => (
+            <div key={`${chunk.document_id ?? chunk.title ?? 'chunk'}-${index}`} className="border-t border-white/20 pt-2 first:border-t-0 first:pt-0">
+              <span className="block font-medium">근거 {index + 1} · {sourceLocation(chunk, index)}</span>
+              <span className="mt-1 block opacity-90">
+                {chunk.excerpt || '저장된 근거에 발췌 내용이 없습니다.'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
-
-  return content;
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -935,8 +1001,8 @@ export default function ChatPage() {
                             </span>
                           </div>
                           <div className="flex flex-col gap-1">
-                            {msg.sources.map((src, i) => (
-                              <SourceChip key={`${src.document_id ?? src.title ?? i}-${i}`} source={src} index={i} />
+                            {groupSources(msg.sources).map((group) => (
+                              <SourceChip key={group.key} group={group} />
                             ))}
                           </div>
                         </div>

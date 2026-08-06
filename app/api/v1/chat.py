@@ -41,6 +41,18 @@ def _to_dict(obj: Any) -> Dict[str, Any]:
     return str(obj)
 
 
+def _to_public_source_dict(source: Any) -> dict[str, Any]:
+    """검색 내부 점수는 노출하지 않고 출처 표시용 메타데이터만 반환한다."""
+    data = _to_dict(source)
+    if not isinstance(data, dict):
+        return {}
+    return {
+        key: value
+        for key, value in data.items()
+        if key != "relevance_score"
+    }
+
+
 @router.post("/chat/query", response_model=ChatQueryResponse)
 def query_chat(request: ChatQueryRequest, db: Client = Depends(get_db), current_user: Optional[dict] = Depends(get_current_user_optional)):
     try:
@@ -72,7 +84,9 @@ def query_chat(request: ChatQueryRequest, db: Client = Depends(get_db), current_
             raw_sources = result.get("sources", [])
 
         # sources 내부 element들을 dict로 강제 변환
-        formatted_sources = [_to_dict(s) for s in raw_sources]
+        formatted_sources = [
+            _to_public_source_dict(source) for source in raw_sources
+        ]
         final_answer = str(raw_answer)
 
         # 3. AI 답변 DB 저장
@@ -119,7 +133,11 @@ def query_chat_stream(request: ChatQueryRequest, db: Client = Depends(get_db), c
                     data_str = event.split("data: ", 1)[1].strip()
                     parsed_sources = json.loads(data_str)
                     if isinstance(parsed_sources, list):
-                        sources = [item for item in parsed_sources if isinstance(item, dict)]
+                        sources = [
+                            _to_public_source_dict(item)
+                            for item in parsed_sources
+                            if isinstance(item, dict)
+                        ]
                 except (IndexError, json.JSONDecodeError):
                     sources = []
             elif event.startswith("event: message"):

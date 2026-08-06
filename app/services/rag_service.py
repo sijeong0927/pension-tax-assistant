@@ -23,6 +23,15 @@ from app.services.knowledge_base import (
 
 MAX_RETRIEVAL_DOCUMENTS = 8
 MAX_INDEX_DOCUMENTS = 100
+SOURCE_EXCERPT_MAX_LENGTH = 280
+
+
+def _source_excerpt(text: str) -> str:
+    """출처 카드에 표시할 수 있는 짧고 공백이 정리된 근거 발췌를 만든다."""
+    normalized = " ".join(text.split())
+    if len(normalized) <= SOURCE_EXCERPT_MAX_LENGTH:
+        return normalized
+    return f"{normalized[:SOURCE_EXCERPT_MAX_LENGTH].rstrip()}…"
 
 
 class RAGServiceError(RuntimeError):
@@ -68,6 +77,7 @@ class RetrievedDocument:
                 for chunk_id in self.source_chunk_ids.split(",")
                 if chunk_id
             ],
+            excerpt=_source_excerpt(self.text) or None,
             provenance_verified=self.provenance_verified,
             relevance_score=self.relevance_score,
         )
@@ -293,8 +303,9 @@ class RAGService:
                 "source_url": s.source_url,
                 "effective_date": s.effective_date,
                 "last_verified": s.last_verified,
+                "source_chunk_ids": s.source_chunk_ids,
+                "excerpt": s.excerpt,
                 "provenance_verified": s.provenance_verified,
-                "relevance_score": s.relevance_score
             })
         yield f"event: sources\ndata: {json.dumps(sources_dict, ensure_ascii=False)}\n\n"
 
